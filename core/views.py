@@ -263,14 +263,16 @@ def wallet_callback(request):
         messages.error(request, "Error verifying transaction.")
         return redirect("load_wallet")
 
-
 @login_required
 def buy_bundle(request):
     user_profile = request.user.userprofile
     wallet_balance = user_profile.wallet
 
-    # Fetch API bundles
+    # HEADERS FOR API
     headers = {"Authorization": f"Bearer {settings.DATA_API_KEY}"}
+
+    # ---- FETCH API BUNDLES ----
+    api_bundles = []
     try:
         response = requests.get(
             f"{settings.DATA_API_BASE_URL}bundles?user_id={settings.DATA_API_USER_ID}",
@@ -278,43 +280,55 @@ def buy_bundle(request):
             timeout=10
         )
         response.raise_for_status()
-        api_bundles = response.json().get("bundles", [])
-        for b in api_bundles:
-            b["is_api"] = True
-    except requests.RequestException:
-        messages.error(request, "Failed to fetch API bundles. Try again later.")
+        api_data = response.json().get("bundles", [])
+
+        # Normalize to match local bundle structure
+        for b in api_data:
+            api_bundles.append({
+                "id": f"api-{b['id']}",  # avoid conflicting with local bundle IDs
+                "name": b["name"],
+                "network": b["network"],
+                "price": float(b["price"]),
+                "is_api": True
+            })
+
+    except Exception:
+        messages.error(request, "Failed to load API bundles.")
         api_bundles = []
 
-    # Fetch admin local bundles
-    local_bundles_qs = Bundle.objects.filter(is_active=True)
+    # ---- FETCH LOCAL DB BUNDLES ----
     local_bundles = []
-    for b in local_bundles_qs:
+    for b in Bundle.objects.filter(is_active=True):
         local_bundles.append({
-            "id": b.id,
+            "id": f"local-{b.id}",
             "name": b.name,
             "network": b.network,
             "price": float(b.price),
-            "is_api": b.send_via_api
+            "is_api": False,
+            "original_id": b.id
         })
 
-    # Merge both
-    bundles_data = local_bundles + api_bundles
+    # MERGED
+    bundles = api_bundles + local_bundles
 
+    # ---- FORM SUBMISSION ----
     if request.method == "POST":
-        bundle_id = request.POST.get("bundle_id")
-        quantity = int(request.POST.get("quantity", 1))
+        selected_id = request.POST.get("bundle_id")
+        quantity = int(request.POST.get("quantity"))
 
-        selected_bundle = next((b for b in bundles_data if str(b["id"]) == str(bundle_id)), None)
-        if not selected_bundle:
-            messages.error(request, "Selected bundle does not exist.")
+        # find bundle
+        selected = next((x for x in bundles if str(x["id"]) == str(selected_id)), None)
+        if not selected:
+            messages.error(request, "Bundle not found.")
             return redirect("buy_bundle")
 
-        total_price = selected_bundle["price"] * quantity
+        total_price = selected["price"] * quantity
+
         if wallet_balance < total_price:
             messages.error(request, "Insufficient wallet balance.")
             return redirect("buy_bundle")
 
-        # Deduct from wallet
+        # Deduct wallet
         user_profile.wallet -= total_price
         user_profile.save()
 
@@ -324,15 +338,16 @@ def buy_bundle(request):
             bundle=None,
             recipient=request.user.username,
             amount=total_price,
-            status="PAID"
+            status="PAID",
+            details=f"{quantity} × {selected['name']} ({selected['network']})"
         )
 
-        messages.success(request, f"You bought {quantity} × {selected_bundle['name']}")
+        messages.success(request, f"Successfully bought {quantity} × {selected['name']}")
         return redirect("buy_bundle")
 
     return render(request, "buy_bundle.html", {
         "wallet": wallet_balance,
-        "bundles": bundles_data
+        "bundles": bundles
     })
 
 
