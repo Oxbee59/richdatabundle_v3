@@ -1,0 +1,85 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}RICHDATABUNDLES — Admin{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        /* Admin theme: RICHDATABUNDLES violet */
+        :root {
+            --brand-violet: #6a0dad;
+            --brand-violet-dark: #4113b8;
+            --surface: #ffffff;
+            --muted: #6b6b6b;
+        }
+
+        /* Header / Branding */
+        #header {
+            background: linear-gradient(90deg, var(--brand-violet), var(--brand-violet-dark));
+            box-shadow: 0 2px 8px rgba(106,13,173,0.12);
+        }
+        #header .branding {
+            color: white;
+        }
+        #header .branding a {
+            color: white;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 20px;
+        }
+
+        /* Replace default admin link colors */
+        .module caption, .app-list th {
+            color: var(--brand-violet);
+        }
+
+        /* Card / list styling */
+        .module, .app-list, .dashboard-module {
+            border-radius: 10px;
+            background: var(--surface);
+            box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+
+        /* Buttons */
+        .button, input[type=submit], .default {
+            background: var(--brand-violet) !important;
+            border-color: var(--brand-violet) !important;
+            color: #fff !important;
+            box-shadow: 0 6px 14px rgba(106,13,173,0.12);
+        }
+
+        /* Responsive tweaks for mobile */
+        @media (max-width: 720px) {
+            #header .branding a { font-size: 18px; }
+            .module { margin: 10px 6px; }
+            .breadcrumbs { font-size: 13px; }
+        }
+
+        /* Small utility */
+        .rd-small-muted { color: var(--muted); font-size: 0.95em; }
+    </style>
+{% endblock %}
+
+{% block branding %}
+<div class="branding">
+    <a href="{% url 'admin:index' %}">RichData.com</a>
+    <span class="rd-small-muted">— Admin</span>
+</div>
+{% endblock %}
+
+{% block nav-global %}
+    {{ block.super }}
+    <!-- add small quick-links on the right of header -->
+    <div class="user-tools">
+        <ul class="nav navbar-nav pull-right">
+            <li><a href="/" target="_blank">View site</a></li>
+            <li><a href="{%% url 'admin:logout' %%}">Log out</a></li>
+        </ul>
+    </div>
+{% endblock %}
+
+{% block content %}
+    {{ block.super }}
+{% endblock %}
