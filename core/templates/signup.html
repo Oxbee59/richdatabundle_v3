@@ -1,99 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Sign Up - RICHDATABUNDLES</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign Up - RichData.com</title>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f3f3f3;
-            margin: 0;
-            padding: 0;
-        }
+        body { background:#f3f3f3; margin:0; font-family:Poppins, sans-serif; }
         .container {
             max-width: 400px;
-            margin: 80px auto;
-            background-color: #fff;
-            padding: 30px;
+            width: 90%;
+            margin: 50px auto;
+            background: white;
+            padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
         }
-        h2 {
-            text-align: center;
-            color: #6a0dad;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input[type="text"], input[type="email"], input[type="password"], input[type="submit"] {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-        }
-        input[type="submit"] {
-            background-color: #6a0dad;
-            color: #fff;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-        }
-        .message {
-            color: red;
-            text-align: center;
-        }
-        .toggle-pass { display: flex; gap: 5px; }
+        h2 { text-align:center; color:#6a0dad; }
+        input { width:100%; padding:12px; border:1px solid #ccc; border-radius:6px; margin-bottom:12px; }
+        .btn { width:100%; padding:12px; background:#6a0dad; color:white; font-weight:bold; border:none; border-radius:8px; }
     </style>
 </head>
+
 <body>
 <div class="container">
-    <h2>Create Your Account</h2>
+    <h2>Create Account</h2>
 
     {% if messages %}
         {% for message in messages %}
-            <div class="message">{{ message }}</div>
+            <div style="color:red; text-align:center; margin-bottom:10px;">{{ message }}</div>
         {% endfor %}
     {% endif %}
 
-    <form method="POST" action="{% url 'signup' %}">
+    <form method="POST">
         {% csrf_token %}
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="email" name="email" placeholder="Email" required>
 
-        <label>Username</label>
-        <input type="text" name="username" required>
+        <input type="password" name="password" id="pass1" placeholder="Password" required>
+        <label><input type="checkbox" onclick="toggle('pass1')"> Show Password</label>
 
-        <label>Email</label>
-        <input type="email" name="email" required>
+        <input type="password" name="confirm_password" id="pass2" placeholder="Confirm Password" required>
+        <label><input type="checkbox" onclick="toggle('pass2')"> Show Password</label>
 
-        <label>Password</label>
-        <input type="password" id="password" name="password" required>
-
-        <div class="toggle-pass">
-            <input type="checkbox" onclick="togglePassword('password')"> Show Password
-        </div>
-
-        <label>Confirm Password</label>
-        <input type="password" id="confirm_password" name="confirm_password" required>
-
-        <div class="toggle-pass">
-            <input type="checkbox" onclick="togglePassword('confirm_password')"> Show Password
-        </div>
-
-        <input type="submit" value="Sign Up">
+        <button class="btn">Sign Up</button>
     </form>
 
-    <p style="text-align:center">
-        Already have an account? <a href="{% url 'login' %}">Login</a>
+    <p style="text-align:center; margin-top:10px;">
+        Already have an account? <a href="/login/" style="color:#6a0dad;">Login</a>
     </p>
 </div>
 
 <script>
-    function togglePassword(id) {
-        const x = document.getElementById(id);
-        x.type = (x.type === "password") ? "text" : "password";
-    }
+function toggle(id){
+    let x=document.getElementById(id);
+    x.type = x.type==="password" ? "text":"password";
+}
 </script>
+
 </body>
 </html>

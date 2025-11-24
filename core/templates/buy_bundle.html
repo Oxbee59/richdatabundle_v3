@@ -3,127 +3,82 @@
 
 <style>
 .page-card {
-    max-width: 600px;
-    margin: 40px auto;
+    max-width: 95%;
+    width: 600px;
+    margin: 20px auto;
     background: #fff;
-    padding: 25px;
+    padding: 20px;
     border-radius: 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    font-family: Arial, sans-serif;
-}
-.page-card h2 {
-    text-align: center;
-    color: #6a0dad;
-    margin-bottom: 20px;
-}
-.wallet-box {
-    background: #f8f1ff;
-    padding: 12px;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: bold;
-    color: #520a9e;
-    margin-bottom: 20px;
-}
-.bundle-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 15px;
-    margin-bottom: 20px;
-}
-.bundle-card {
-    padding: 12px;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    cursor: pointer;
-    border: 3px solid transparent;
-    transition: transform 0.2s, border-color 0.2s;
-    text-align: center;
-}
-.bundle-card:hover {
-    transform: scale(1.05);
-}
-.bundle-card.selected {
-    border-style: solid;
-}
-.bundle-name {
-    font-weight: bold;
-    margin-bottom: 6px;
-}
-.bundle-price {
-    font-weight: bold;
-    margin-bottom: 4px;
-    color: #6a0dad;
-}
-.bundle-badge {
-    font-size: 11px;
-    font-weight: bold;
-    color: white;
-    border-radius: 4px;
-    padding: 2px 6px;
-}
-.bundle-admin {
-    background: #28a745;
-}
-.bundle-api {
-    background: #6a0dad;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
 }
 
-/* Network border colors */
-.network-mtn {
-    border-color: #FFD700; /* yellow */
+/* Responsive grid */
+.bundle-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
 }
-.network-airteltigo {
-    border-color: #1E90FF; /* blue */
+
+/* Bundle cards */
+.bundle-card {
+    text-align: center;
+    padding: 12px;
+    border-radius: 10px;
+    background: #fafafa;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: 0.3s;
 }
-.network-telecel,
-.network-vodafone {
-    border-color: #FF4500; /* red */
-}
+.bundle-card.selected { border-color: #6a0dad; }
+
+.bundle-name { font-weight: bold; margin-bottom: 5px; }
+.bundle-price { color: #6a0dad; font-weight: 600; }
 
 .btn-primary {
     background: #6a0dad;
-    color: #fff;
+    color: white;
     width: 100%;
     padding: 12px;
     border: none;
     border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
+    margin-top: 20px;
     font-size: 16px;
-}
-.btn-primary:hover {
-    background: #520a9e;
+    font-weight: bold;
 }
 </style>
 
 <div class="page-card">
-    <h2>Buy Bundle</h2>
 
-    <div class="wallet-box">
+    <h2 style="text-align:center; color:#6a0dad;">Buy Bundle</h2>
+
+    <div class="wallet-box" style="
+        background:#f8f1ff;
+        padding:12px;
+        border-radius:8px;
+        text-align:center;
+        font-weight:bold;
+        color:#520a9e;
+        margin-bottom:20px;
+    ">
         Wallet Balance: GHS {{ wallet }}
     </div>
 
-    <form method="POST" id="buyBundleForm">
+    <form method="POST">
         {% csrf_token %}
-        <input type="hidden" name="bundle_id" id="bundle_id" required>
+        <input type="hidden" id="bundle_id" name="bundle_id" required>
 
         <label>Quantity</label>
-        <input type="number" name="quantity" value="1" min="1" required>
+        <input type="number" min="1" value="1" name="quantity"
+               style="width:100%; padding:10px; border-radius:6px; margin-top:5px;">
 
         <div class="bundle-grid">
             {% for b in bundles %}
-            <div class="bundle-card network-{{ b.network|lower|cut:" " }}"
-                 data-id="{{ b.id }}">
-
-                <div class="bundle-name">{{ b.network }} - {{ b.name }}</div>
+            <div class="bundle-card" data-id="{{ b.id }}">
+                <div class="bundle-name">{{ b.network }} • {{ b.name }}</div>
                 <div class="bundle-price">GHS {{ b.price }}</div>
-
-                <div class="bundle-badge {% if b.send_via_api %}bundle-api{% else %}bundle-admin{% endif %}">
-                    {% if b.send_via_api %}API{% else %}Admin{% endif %}
-                </div>
-
+                <small style="color:#6a0dad; font-weight:600;">
+                    {% if b.is_api %}API{% else %}Admin{% endif %}
+                </small>
             </div>
             {% endfor %}
         </div>
@@ -133,16 +88,12 @@
 </div>
 
 <script>
-// Handle card selection
-const cards = document.querySelectorAll('.bundle-card');
-const hiddenInput = document.getElementById('bundle_id');
-
-cards.forEach(card => {
-    card.addEventListener('click', () => {
-        cards.forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        hiddenInput.value = card.getAttribute('data-id');
-    });
+document.querySelectorAll(".bundle-card").forEach(card => {
+    card.onclick = () => {
+        document.querySelectorAll(".bundle-card").forEach(c => c.classList.remove("selected"));
+        card.classList.add("selected");
+        document.getElementById("bundle_id").value = card.getAttribute("data-id");
+    };
 });
 </script>
 
