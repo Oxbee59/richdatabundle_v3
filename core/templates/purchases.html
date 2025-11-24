@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:1000px;margin:auto;">
+  <div class="card">
+    <h3>Your Purchases</h3>
+    {% if items %}
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="text-align:left;color:#666;">
+          <th style="padding:8px;">Bundle</th><th style="padding:8px;">Recipient</th><th style="padding:8px;">Amount</th><th style="padding:8px;">Status</th><th style="padding:8px;">When</th>
+        </tr></thead>
+        <tbody>
+        {% for p in items %}
+          <tr>
+            <td style="padding:8px;">{{ p.bundle.name }}</td>
+            <td style="padding:8px;">{{ p.recipient }}</td>
+            <td style="padding:8px;">GH₵{{ p.amount }}</td>
+            <td style="padding:8px;">{{ p.status }}</td>
+            <td style="padding:8px;">{{ p.timestamp|date:"M d, Y H:i" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No purchases yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

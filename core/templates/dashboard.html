@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:1100px;margin:auto;">
+
+  <div style="display:flex;gap:20px;flex-wrap:wrap;">
+    <div class="card" style="flex:1;min-width:220px;">
+      <h4>Bundles Available</h4>
+      <p style="font-size:28px;margin:6px 0;">{{ bundles_count }}</p>
+      <p style="color:#666;">Top bundles preview below.</p>
+    </div>
+
+    <div class="card" style="flex:1;min-width:220px;">
+      <h4>Wallet</h4>
+      <p style="font-size:28px;margin:6px 0;">GH₵{{ wallet_balance }}</p>
+      <a href="{% url 'load_wallet' %}" class="btn-primary">Load Wallet</a>
+    </div>
+
+    <div class="card" style="flex:1;min-width:220px;">
+      <h4>Purchases</h4>
+      <p style="font-size:28px;margin:6px 0;">{{ purchases_count }}</p>
+      <a href="{% url 'purchases' %}" class="btn-primary">View Purchases</a>
+    </div>
+
+    <div class="card" style="flex:1;min-width:220px;">
+      <h4>Agent Status</h4>
+      {% if is_agent %}
+        <p style="color:green;font-weight:600;">Agent</p>
+        <a href="{% url 'agent_dashboard' %}" class="btn-primary">Go to Agent Dashboard</a>
+      {% else %}
+        <p style="color:#555;">Normal User</p>
+        <a href="{% url 'become_agent' %}" class="btn-primary">Become an Agent</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <h3>Why choose RICHDATABUNDLES?</h3>
+    <p style="color:#555;">
+      Fast, secure, and transparent. We use trusted payment providers and log every transaction.
+      Your wallet and purchases are protected — manage everything from your dashboard.
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <h3>Bundles Preview</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;">
+      {% for b in bundles_preview %}
+        <div style="min-width:180px;padding:12px;border-radius:8px;background:#faf7ff;">
+          <strong>{{ b.network }}</strong>
+          <p style="margin:6px 0;font-weight:600;">{{ b.name }}</p>
+          <p style="margin:0;">Code: {{ b.code }}</p>
+          <p style="margin-top:6px;font-weight:700;"> GH₵{{ b.price }}</p>
+          <a href="{% url 'buy_bundle' %}" style="display:inline-block;margin-top:8px;">Buy</a>
+        </div>
+      {% empty %}
+        <p>No bundles yet. Admin can add bundles from admin panel.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <h3>Recent Purchases</h3>
+    {% if recent_purchases %}
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="text-align:left;color:#666;">
+          <th style="padding:8px;">Bundle</th><th style="padding:8px;">Recipient</th><th style="padding:8px;">Amount</th><th style="padding:8px;">Status</th><th style="padding:8px;">When</th>
+        </tr></thead>
+        <tbody>
+        {% for p in recent_purchases %}
+          <tr>
+            <td style="padding:8px;">{{ p.bundle.name }}</td>
+            <td style="padding:8px;">{{ p.recipient }}</td>
+            <td style="padding:8px;">GH₵{{ p.amount }}</td>
+            <td style="padding:8px;">
+              {% if p.status == "PAID" %}
+                <span style="background:#e6f8ef;padding:6px;border-radius:6px;color:#1c7a3d;">Paid</span>
+              {% elif p.status == "PENDING" %}
+                <span style="background:#fff6e6;padding:6px;border-radius:6px;color:#b26b00;">Pending</span>
+              {% else %}
+                <span style="background:#ffe6e6;padding:6px;border-radius:6px;color:#8b1c1c;">Failed</span>
+              {% endif %}
+            </td>
+            <td style="padding:8px;">{{ p.timestamp|date:"M d, Y H:i" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No purchases yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

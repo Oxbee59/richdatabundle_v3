@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title|default:"RichData.com" }}</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Simple CSS Theme -->
+    <style>
+        body {
+            margin: 0;
+            background: #f3f0ff;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* NAVBAR */
+        .navbar {
+            background: #5a2bd6;
+            padding: 15px 20px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .menu-btn {
+            cursor: pointer;
+            font-size: 20px;
+            color: white;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            height: 100%;
+            width: 260px;
+            background: #fff;
+            position: fixed;
+            top: 0;
+            left: -260px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            padding-top: 70px;
+            transition: 0.3s;
+            z-index: 1000;
+        }
+
+        .sidebar .user-name {
+            font-weight: 600;
+            padding: 12px 20px;
+            border-bottom: 1px solid #eee;
+            color: #5a2bd6;
+        }
+
+        .sidebar a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 20px;
+            color: #333;
+            font-weight: 500;
+            text-decoration: none;
+            border-bottom: 1px solid #eee;
+        }
+
+        .sidebar a:hover {
+            background: #f0e8ff;
+        }
+
+        .close-btn {
+            top: 15px;
+            left: 15px;
+            position: absolute;
+            font-size: 22px;
+            cursor: pointer;
+            color: #5a2bd6;
+        }
+
+        /* MAIN CONTENT */
+        .content {
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        /* FOOTER */
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px 10px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        /* ICONS */
+        .sidebar a span.icon {
+            font-size: 18px;
+            color: #5a2bd6;
+        }
+
+        /* Responsive adjustments */
+        @media(max-width:600px){
+            .content { padding: 15px; }
+            .navbar { font-size: 18px; }
+        }
+    </style>
+
+    <script>
+        function openSidebar() {
+            document.getElementById("sidebar").style.left = "0";
+        }
+        function closeSidebar() {
+            document.getElementById("sidebar").style.left = "-260px";
+        }
+    </script>
+
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <div class="navbar">
+        <span class="menu-btn" onclick="openSidebar()">☰</span>
+        RichData.com
+    </div>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar" class="sidebar">
+        <span class="close-btn" onclick="closeSidebar()">×</span>
+
+        {% if user.is_authenticated %}
+            <div class="user-name">Hi, {{ user.username }}</div>
+            <a href="/agent-dashboard/"><span class="icon">🏠</span> Dashboard</a>
+            <a href="/buy-bundle/"><span class="icon">📦</span> Buy Bundle</a>
+            <a href="/load-wallet/"><span class="icon">💰</span> Load Wallet</a>
+            <a href="/purchases/"><span class="icon">🛒</span> Purchases</a>
+            <a href="/profile/"><span class="icon">👤</span> Profile</a>
+            <a href="/api-docs/"><span class="icon">📝</span> API Docs</a>
+            <a href="/logout/"><span class="icon">🚪</span> Logout</a>
+        {% else %}
+            <a href="/login/"><span class="icon">🔑</span> Login</a>
+            <a href="/signup/"><span class="icon">✍️</span> Sign Up</a>
+        {% endif %}
+    </div>
+
+    <!-- MAIN PAGE CONTENT -->
+    <div class="content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+       RichData.com All Rights Reserved © 2025. Developed by HUMMINGBIRD DIGITAL SOLUTIONS
+    </footer>
+
+</body>
+</html>

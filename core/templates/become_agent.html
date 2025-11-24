@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="card" style="max-width:400px;margin:auto;text-align:center;">
+    <h2 style="margin-bottom:15px;">Become an Agent</h2>
+
+    <p>Registration Fee: <strong>GHS {{ registration_fee }}</strong></p>
+    <p>Your Wallet Balance: <strong>GHS {{ user.userprofile.wallet }}</strong></p>
+
+    {% if user.userprofile.is_agent %}
+        <p style="color:green;font-weight:bold;">You are already an active agent.</p>
+    {% else %}
+        {% if user.userprofile.wallet >= registration_fee %}
+            <form method="POST">
+                {% csrf_token %}
+                <button class="btn-primary" style="width:100%;margin-top:15px;">Pay & Activate Agent</button>
+            </form>
+        {% else %}
+            <p style="color:red;">Insufficient wallet balance. Please <a href="/load-wallet/">load your wallet</a>.</p>
+        {% endif %}
+    {% endif %}
+
+</div>
+
+{% endblock %}

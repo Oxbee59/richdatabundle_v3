@@ -1,0 +1,24 @@
+<div class="page-card">
+
+    <h2>Sell Bundle</h2>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <label>Select Bundle</label>
+        <select name="bundle_id" required>
+    {% for b in bundles %}
+    <option value="{{ b.id }}">{{ b.network }} - {{ b.name }} (GHS {{ b.price }})</option>
+    {% endfor %}
+</select>
+
+
+        <label>Quantity</label>
+        <input type="number" name="quantity" value="1" min="1" required>
+
+        <label>Customer Phone</label>
+        <input type="text" name="customer_phone" placeholder="Enter phone number" required>
+
+        <button class="btn-primary">Sell Bundle</button>
+    </form>
+</div>

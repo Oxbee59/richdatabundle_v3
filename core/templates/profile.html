@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:800px;margin:auto;">
+  <div class="card">
+    <h3>Your Profile</h3>
+    <p><strong>Username:</strong> {{ request.user.username }}</p>
+    <p><strong>Email:</strong> {{ request.user.email }}</p>
+    <p><strong>Wallet:</strong>GH₵{{ request.user.userprofile.wallet }}</p>
+
+    {% if request.user.userprofile.is_agent %}
+      <p style="color:green;font-weight:600;">Agent account</p>
+      <a href="{% url 'agent_dashboard' %}" class="btn-primary">Agent Dashboard</a>
+    {% else %}
+      <a href="{% url 'become_agent' %}" class="btn-primary">Become Agent</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

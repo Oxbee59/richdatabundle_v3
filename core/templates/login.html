@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - RICHDATABUNDLES</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f3f3f3;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 400px;
+            margin: 100px auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #6a0dad; /* violet theme */
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="password"], input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            background-color: #6a0dad;
+            color: #fff;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        input[type="submit"]:hover {
+            background-color: #520a9e;
+        }
+        .message {
+            color: red;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .toggle-pass {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .footer-text {
+            text-align: center;
+            font-size: 0.9em;
+        }
+        .footer-text a {
+            color: #6a0dad;
+            text-decoration: none;
+        }
+        .footer-text a:hover {
+            text-decoration: underline;
+        }
+
+        .trust-box {
+            margin-top: 25px;
+            text-align: center;
+            font-size: 0.85em;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+            color: #444;
+        }
+        .trust-box strong {
+            color: #6a0dad;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Login</h2>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="POST" action="{% url 'login' %}">
+            {% csrf_token %}
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required>
+
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+
+            <div class="toggle-pass">
+                <input type="checkbox" onclick="togglePassword('password')"> Show Password
+            </div>
+
+            <input type="submit" value="Login">
+        </form>
+
+        <p class="footer-text">
+            Don't have an account? <a href="{% url 'signup' %}">Sign Up</a>
+        </p>
+
+        <div class="trust-box">
+            <strong>RICHDATABUNDLES</strong> is a trusted platform.  
+            Your information is protected and never shared with anyone.  
+            Buy data and bundles with confidence — fast, secure, and reliable.
+        </div>
+    </div>
+
+    <script>
+        function togglePassword(id) {
+            const x = document.getElementById(id);
+            x.type = x.type === "password" ? "text" : "password";
+        }
+    </script>
+</body>
+</html>
