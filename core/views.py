@@ -1,4 +1,5 @@
 # core/views.py
+from django.db import models
 from decimal import Decimal
 import json
 import requests  # make sure 'requests' is installed in your environment
