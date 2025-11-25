@@ -7,19 +7,16 @@
     <!-- METRICS CARDS -->
     <div class="metrics-grid">
 
-        <!-- Total Agents -->
         <a href="{% url 'admin_agents' %}" class="metric-card primary clickable">
             <h4>Total Agents</h4>
             <p>{{ total_agents }}</p>
         </a>
 
-        <!-- Total Wallet Funds -->
         <a href="{% url 'admin_wallets' %}" class="metric-card clickable">
             <h4>Total Wallet Funds</h4>
             <p>GHS {{ total_wallets }}</p>
         </a>
 
-        <!-- Orders Today -->
         <a href="{% url 'admin_orders_today' %}" class="metric-card clickable">
             <h4>Orders Today</h4>
             <p>{{ total_orders_today }}</p>
@@ -46,13 +43,7 @@
             </tr>
             {% for msg in contact_messages %}
             <tr>
-                <td>
-                    {% if msg.user %}
-                        {{ msg.user.username }}
-                    {% else %}
-                        {{ msg.email }}
-                    {% endif %}
-                </td>
+                <td>{% if msg.user %}{{ msg.user.username }}{% else %}{{ msg.email }}{% endif %}</td>
                 <td>{{ msg.subject }}</td>
                 <td>{{ msg.message|truncatewords:15 }}</td>
                 <td>{{ msg.created_at|date:"M d, Y H:i" }}</td>
@@ -69,7 +60,7 @@
     <h3 class="section-title" style="margin-top:30px;">Current Bundles</h3>
     <div class="bundle-grid">
         {% for b in bundles %}
-        <a href="#" class="bundle-card"> <!-- replace # with bundle detail url if exists -->
+        <a href="#" class="bundle-card">
             <strong>{{ b.network }} • {{ b.name }}</strong><br>
             GHS {{ b.price }} <br>
             {% if b.send_via_api %}
@@ -154,5 +145,4 @@ td { padding:12px; border-bottom:1px solid #eee; }
     th, td { font-size:13px; }
 }
 </style>
-
 {% endblock %}

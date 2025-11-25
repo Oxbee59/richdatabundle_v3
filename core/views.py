@@ -23,7 +23,7 @@ from django.utils.decorators import method_decorator
 from django.db.models import Sum
 from django.shortcuts import render
 from core.models import AgentProfile, Purchase, UserProfile
-from django.utils.timezone import now
+from django.utils.timezone import now, timezone
 
 
 # -------------------
@@ -487,19 +487,20 @@ def contact_admin(request):
 
 
 # -------------------
-# Admin views (simple) - view messages, set bundles, fund agent, etc.
-# We'll protect with superuser check.
+# Helper
 # -------------------
 def is_admin(user):
     return user.is_superuser
 
 
+# -------------------
+# Admin Dashboard
+# -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_dashboard(request):
-    # aggregate metrics
     total_agents = UserProfile.objects.filter(is_agent=True).count()
     total_wallets = UserProfile.objects.aggregate(total=models.Sum('wallet'))['total'] or Decimal("0.00")
-    total_orders_today = Purchase.objects.filter(created_at__date=timezone.now().date()).count()
+    total_orders_today = Purchase.objects.filter(created_at__date=now().date()).count()
     bundles = Bundle.objects.all().order_by("network", "name")
     contact_messages = ContactMessage.objects.all().order_by("-created_at")[:30]
 
@@ -514,8 +515,7 @@ def admin_dashboard(request):
 
 
 # -------------------
-# Admin: Add / Edit Bundle (basic endpoints)
-# Protected by superuser decorator
+# Add Bundle
 # -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_add_bundle(request):
@@ -524,40 +524,51 @@ def admin_add_bundle(request):
         code = request.POST.get("code")
         network = request.POST.get("network")
         price = float(request.POST.get("price") or 0)
-        send_via_api = bool(request.POST.get("send_via_api"))
-        Bundle.objects.create(name=name, code=code, network=network, price=price, send_via_api=send_via_api, is_active=True)
+        send_via_api = request.POST.get("send_via_api") == "on"
+        Bundle.objects.create(
+            name=name,
+            code=code,
+            network=network,
+            price=price,
+            send_via_api=send_via_api,
+            is_active=True
+        )
         messages.success(request, "Bundle added.")
         return redirect("admin_dashboard")
     return render(request, "admin_add_bundle.html", {})
 
 
+# -------------------
+# Update Agent Wallet
+# -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_update_agent_wallet(request):
-    """
-    Admin can add/deduct funds from agent's wallet by email.
-    POST params:
-      - email
-      - amount (positive for add, negative for deduct)
-      - reason (optional)
-    """
     if request.method == "POST":
         email = request.POST.get("email")
         amount = Decimal(request.POST.get("amount", "0"))
         user = User.objects.filter(email=email).first()
         if not user:
             messages.error(request, "User not found.")
-            return redirect("admin_dashboard")
+            return redirect("admin_update_agent_wallet")
+
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.wallet += amount
         profile.save()
         messages.success(request, f"Updated wallet for {user.email}. New balance: GHS {profile.wallet:.2f}")
-        return redirect("admin_dashboard")
+        return redirect("admin_update_agent_wallet")
     return render(request, "admin_update_agent_wallet.html", {})
 
+
+# -------------------
+# Set Registration Fee
+# -------------------
 @staff_member_required(login_url='/admin/login/')
 @user_passes_test(lambda u: u.is_superuser)
 def admin_set_registration_fee(request):
-    settings = AppSettings.objects.first()  # assuming single row
+    settings = AppSettings.objects.first()
+    if not settings:
+        settings = AppSettings.objects.create(registration_fee=0)
+
     if request.method == "POST":
         fee_str = request.POST.get("registration_fee")
         if fee_str:
@@ -571,18 +582,20 @@ def admin_set_registration_fee(request):
                 messages.error(request, "Invalid fee value. Please enter a number.")
         else:
             messages.error(request, "Please enter a registration fee.")
-    
+
     return render(request, "admin_set_registration_fee.html", {"settings": settings})
 
+
+# -------------------
+# View Agents
+# -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_agents_view(request):
-    # Prefetch related UserProfile or Wallet to avoid multiple queries
     agents = AgentProfile.objects.select_related('user', 'userprofile').all()
     
-    # Pass wallet_balance safely
     agent_list = []
     for agent in agents:
-        wallet_balance = getattr(agent.userprofile, 'wallet_balance', 0)
+        wallet_balance = getattr(agent.userprofile, 'wallet', 0)  # use 'wallet' field
         agent_list.append({
             "id": agent.id,
             "username": agent.user.username,
@@ -593,15 +606,18 @@ def admin_agents_view(request):
 
     return render(request, "admin_agents.html", {"agents": agent_list})
 
+
+# -------------------
+# View Wallets
+# -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_wallets_view(request):
-    # Prefetch userprofile to access wallet_balance
     agents = AgentProfile.objects.select_related('userprofile', 'user').all()
     
     wallet_list = []
-    total_wallets = 0
+    total_wallets = Decimal("0.00")
     for agent in agents:
-        balance = getattr(agent.userprofile, 'wallet_balance', 0)
+        balance = getattr(agent.userprofile, 'wallet', 0)
         total_wallets += balance
         wallet_list.append({
             "username": agent.user.username,
@@ -614,12 +630,16 @@ def admin_wallets_view(request):
         "total_wallets": total_wallets
     })
 
+
+# -------------------
+# Orders Today
+# -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_orders_today_view(request):
     today = now().date()
     orders = Purchase.objects.filter(created_at__date=today).select_related("user", "bundle")
-
-    return render(request, "admin_pages/admin_orders_today.html", {
+    
+    return render(request, "admin_orders_today.html", {
         "orders": orders,
         "date": today
     })
