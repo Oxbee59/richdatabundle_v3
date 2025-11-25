@@ -1,23 +1,26 @@
-from django.shortcuts import render, redirect
+# core/views.py
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login as auth_login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from .models import UserProfile, AgentProfile, Bundle, Purchase, AppSettings
-from django.contrib.auth.models import User
-from django.shortcuts import render
-from .models import Settings  # assuming you have a Settings model for admin configs
-from .models import Bundle, Purchase, UserProfile, AgentProfile, Sale
-from .models import Bundle, Sale, UserProfile, AgentProfile
-from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from decimal import Decimal
-from django.utils import timezone
 from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+
 import requests
-from .models import AgentProfile, Withdrawal
+import json
+from decimal import Decimal
+
+from .models import (
+    UserProfile, AgentProfile, Bundle, Purchase, AppSettings,
+    Sale, ContactMessage
+)
+from django.contrib.auth.models import User
+
 
 # -------------------
-# SIGNUP
+# AUTH: signup / login / logout
 # -------------------
 def signup_user(request):
     if request.method == "POST":
@@ -35,75 +38,66 @@ def signup_user(request):
             return redirect("signup")
 
         user = User.objects.create_user(username=username, email=email, password=password)
-
         UserProfile.objects.get_or_create(user=user)
-
         messages.success(request, "Account created successfully. Please login.")
         return redirect("login")
 
     return render(request, "signup.html")
 
-# -------------------
-# LOGIN
-# -------------------
+
 def login_user(request):
     if request.method == "POST":
         username = request.POST.get("username")
         password = request.POST.get("password")
-
         user = authenticate(request, username=username, password=password)
-
         if user:
             auth_login(request, user)
             return redirect("agent_dashboard")
-
         messages.error(request, "Invalid credentials.")
-
     return render(request, "login.html")
 
 
-# -------------------
-# LOGOUT VIEW
-# -------------------
 def logout_user(request):
     logout(request)
     return redirect("login")
 
 
+# -------------------
+# AGENT DASHBOARD (no commissions)
+# -------------------
 @login_required
 def agent_dashboard(request):
     user = request.user
     profile, _ = UserProfile.objects.get_or_create(user=user)
-    agent_profile, _ = AgentProfile.objects.get_or_create(user=user)
+    # agent_profile may be None for normal users
+    agent_profile = None
+    try:
+        agent_profile = AgentProfile.objects.get(user=user)
+    except AgentProfile.DoesNotExist:
+        agent_profile = None
 
-    # Agent metrics
     wallet_balance = profile.wallet
-    commission = agent_profile.commission_earned
-    total_sales_count = agent_profile.total_sales
-    total_sales_volume = agent_profile.total_sales_volume
+    # metrics (no commissions)
+    total_orders = Purchase.objects.filter(user=user).count()
+    total_spent = Purchase.objects.filter(user=user, status="PAID").aggregate(
+        total_amount=models.Sum('amount')
+    )['total_amount'] or Decimal("0.00")
 
-    # Recent purchases for this agent/user
-    recent_sales = Purchase.objects.filter(user=user).order_by("-created_at")[:10]
-
-    # All bundles (local + API-marked)
-    bundles = Bundle.objects.all()
-
-    # App settings
-    app_settings = AppSettings.objects.first()
+    recent_orders = Purchase.objects.filter(user=user).order_by("-created_at")[:10]
 
     context = {
         "wallet_balance": wallet_balance,
-        "commission": commission,
-        "total_sales_count": total_sales_count,
-        "total_sales_volume": total_sales_volume,
-        "recent_sales": recent_sales,
-        "bundles": bundles,
-        "api_key": agent_profile.api_key,
-        "app_settings": app_settings,
-        "user_name": user.username,  # for sidebar display
+        "total_orders": total_orders,
+        "total_spent": total_spent,
+        "recent_orders": recent_orders,
+        "user_name": user.username,
     }
     return render(request, "agent_dashboard.html", context)
 
+
+# -------------------
+# Profile & Purchase History (Order History)
+# -------------------
 @login_required
 def profile(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
@@ -113,64 +107,67 @@ def profile(request):
 @login_required
 def purchases(request):
     user_purchases = Purchase.objects.filter(user=request.user).order_by("-created_at")
-
-    return render(request, "purchases.html", {
-        "purchases": user_purchases
-    })
+    return render(request, "purchases.html", {"purchases": user_purchases})
 
 
+# -------------------
+# API Docs (for agents who want to integrate)
+# -------------------
 @login_required
 def api_docs(request):
-    # Only registered agents can see
     if not request.user.userprofile.is_agent:
         return render(request, "not_authorized.html", {"message": "You must be an agent to access the API."})
 
+    # pulled from your Smartdatalink documentation
     context = {
-        "api_key": request.user.userprofile.api_key,  # unique agent API key
-        "base_url": "https://yourdomain.com/api/",
+        "api_key": request.user.userprofile.agent_profile.api_key if hasattr(request.user, 'userprofile') and request.user.userprofile.agent_profile else None,
+        "base_url": settings.SMART_BASE_URL if hasattr(settings, "SMART_BASE_URL") else "https://blessdatahub.com/api/",
         "endpoints": [
-            {"name": "Check Balance", "url": "/api/wallet/", "method": "GET", "description": "Check your wallet balance."},
-            {"name": "Sell Bundle", "url": "/api/sell-bundle/", "method": "POST", "description": "Sell bundle to customer."},
-            {"name": "Purchase History", "url": "/api/purchases/", "method": "GET", "description": "Get all your past purchases."},
+            {"name": "Create Order", "url": "/api/create_order.php", "method": "POST", "description": "Create a single order"},
+            {"name": "Bulk Orders", "url": "/api/create_order.php", "method": "POST", "description": "Send multiple orders in one request"},
+            {"name": "Check Order Status", "url": "/api/check_order_status.php", "method": "GET", "description": "Check order status by order_id"},
         ]
     }
     return render(request, "api_docs.html", context)
 
+
+# -------------------
+# Become agent (pay registration fee from wallet)
+# -------------------
 @login_required
 def become_agent(request):
     user_profile = request.user.userprofile
-
-    # Get registration fee set by admin
-    registration_fee_setting = Settings.objects.filter(key='agent_registration_fee').first()
-    registration_fee = float(registration_fee_setting.value) if registration_fee_setting else 50.0  # default fee
-
+    registration_fee = 0.0
+    s = AppSettings.objects.first()
+    if s:
+        registration_fee = float(s.agent_registration_fee)
     if user_profile.is_agent:
         messages.info(request, "You are already an agent.")
-        return redirect("/agent-dashboard/")
+        return redirect("agent_dashboard")
 
     if request.method == "POST":
-        if user_profile.wallet >= registration_fee:
-            # Deduct fee
-            user_profile.wallet -= registration_fee
+        if user_profile.wallet >= Decimal(str(registration_fee)):
+            user_profile.wallet -= Decimal(str(registration_fee))
             user_profile.is_agent = True
-            # Create AgentProfile
             agent_profile = AgentProfile.objects.create(user=request.user)
             user_profile.agent_profile = agent_profile
             user_profile.save()
             messages.success(request, "You are now an active agent!")
-            return redirect("/agent-dashboard/")
+            return redirect("agent_dashboard")
         else:
             messages.error(request, "Insufficient wallet balance. Please load your wallet first.")
-
     return render(request, "become_agent.html", {
         "registration_fee": registration_fee,
         "user_profile": user_profile
     })
 
+
+# -------------------
+# Load wallet (Paystack initialize) and callback verification by reference
+# -------------------
 @login_required
 def load_wallet(request):
     user_profile = request.user.userprofile
-
     if request.method == "POST":
         try:
             amount = float(request.POST.get("amount"))
@@ -178,51 +175,28 @@ def load_wallet(request):
                 messages.error(request, "Enter a valid amount.")
                 return redirect("load_wallet")
 
-            # Build callback URL
             callback_url = request.build_absolute_uri(reverse("wallet_callback"))
-
-            # Paystack headers
             headers = {
                 "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
                 "Content-Type": "application/json",
             }
-
-            # Paystack payload
             payload = {
                 "email": request.user.email,
-                "amount": int(amount * 100),  # Paystack uses kobo
+                "amount": int(amount * 100),
                 "currency": "GHS",
                 "callback_url": callback_url,
-
-                # VERY IMPORTANT — to identify the wallet owner
-                "metadata": {
-                    "user_id": request.user.id,
-                    "type": "wallet_topup",
-                }
+                "metadata": {"user_id": request.user.id, "type": "wallet_topup"}
             }
-
-            # Initialize transaction
-            response = requests.post(
-                "https://api.paystack.co/transaction/initialize",
-                json=payload,
-                headers=headers
-            )
+            response = requests.post("https://api.paystack.co/transaction/initialize", json=payload, headers=headers, timeout=15)
             res = response.json()
-
-            if res.get("status") is True:
-                # Redirect user to Paystack payment page
+            if res.get("status"):
                 return redirect(res["data"]["authorization_url"])
-
             messages.error(request, "Payment initialization failed. Try again.")
             return redirect("load_wallet")
-
         except Exception as e:
             messages.error(request, f"Error: {str(e)}")
             return redirect("load_wallet")
-
-    return render(request, "load_wallet.html", {
-        "wallet": user_profile.wallet
-    })
+    return render(request, "load_wallet.html", {"wallet": user_profile.wallet})
 
 
 @login_required
@@ -232,269 +206,362 @@ def wallet_callback(request):
         messages.error(request, "Invalid payment reference.")
         return redirect("load_wallet")
 
-    # Verify payment with Paystack
-    headers = {
-        "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-    }
-
+    headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
     verify_url = f"https://api.paystack.co/transaction/verify/{reference}"
-    response = requests.get(verify_url, headers=headers)
-    res = response.json()
-
     try:
-        if res["status"] and res["data"]["status"] == "success":
-            amount_paid = res["data"]["amount"] / 100  # convert kobo → GHS
-
-            user_profile = request.user.userprofile
-            user_profile.wallet += amount_paid
-            user_profile.save()
-
-            messages.success(
-                request,
-                f"Wallet successfully credited with GHS {amount_paid:.2f}"
-            )
-            return redirect("agent_dashboard")
-
-        else:
-            messages.error(request, "Transaction failed or incomplete.")
-            return redirect("load_wallet")
-
+        response = requests.get(verify_url, headers=headers, timeout=15)
+        res = response.json()
     except Exception:
         messages.error(request, "Error verifying transaction.")
         return redirect("load_wallet")
 
+    try:
+        if res.get("status") and res["data"]["status"] == "success":
+            amount_paid = Decimal(res["data"]["amount"]) / 100
+            user_profile = request.user.userprofile
+            user_profile.wallet += amount_paid
+            user_profile.save()
+            messages.success(request, f"Wallet successfully credited with GHS {amount_paid:.2f}")
+            return redirect("agent_dashboard")
+        else:
+            messages.error(request, "Transaction failed or incomplete.")
+            return redirect("load_wallet")
+    except Exception:
+        messages.error(request, "Error processing payment verification.")
+        return redirect("load_wallet")
+
+
+# -------------------
+# Paystack webhook (recommended): update wallets from webhook
+# -------------------
+@csrf_exempt
+def paystack_webhook(request):
+    """
+    Paystack will POST event data here. We verify signature header if configured.
+    This route should be configured on Paystack dashboard as a webhook endpoint.
+    """
+    try:
+        payload = request.body
+        sig = request.headers.get("x-paystack-signature") or request.META.get("HTTP_X_PAYSTACK_SIGNATURE")
+        # If you have PAYSTACK_WEBHOOK_SECRET, verify HMAC
+        secret = getattr(settings, "PAYSTACK_WEBHOOK_SECRET", None)
+        if secret and sig:
+            import hmac, hashlib
+            computed = hmac.new(secret.encode(), payload, hashlib.sha512).hexdigest()
+            if computed != sig:
+                return render(request, "not_authorized.html", {"message": "Invalid webhook signature."}, status=403)
+
+        data = json.loads(payload)
+        event = data.get("event")
+        if event == "charge.success":
+            meta = data.get("data", {}).get("metadata", {})
+            if meta.get("type") == "wallet_topup":
+                user_id = meta.get("user_id")
+                amount = Decimal(data["data"]["amount"]) / 100
+                user = User.objects.filter(id=user_id).first()
+                if user:
+                    up, _ = UserProfile.objects.get_or_create(user=user)
+                    up.wallet += amount
+                    up.save()
+        # reply 200 to acknowledge
+        return render(request, "ok.html", {}, status=200)
+    except Exception:
+        return render(request, "not_authorized.html", {"message": "Webhook handling error."}, status=500)
+
+
+# -------------------
+# BUY BUNDLE (users buy bundles from admin bundles -> Smartdatalink order)
+# changes: no quantity (single), recipient phone required
+# -------------------
 @login_required
 def buy_bundle(request):
-    user_profile = request.user.userprofile
-    wallet_balance = user_profile.wallet
+    profile = request.user.userprofile
+    wallet_balance = profile.wallet
 
-    # HEADERS FOR API
-    headers = {"Authorization": f"Bearer {settings.DATA_API_KEY}"}
+    # Admin bundles only (admin sets bundles)
+    bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
+    bundles = [{
+        "id": b.id,
+        "name": b.name,
+        "code": b.code,
+        "network": b.network,
+        "price": float(b.price),
+        "send_via_api": b.send_via_api
+    } for b in bundles_qs]
 
-    # ---- FETCH API BUNDLES ----
-    api_bundles = []
-    try:
-        response = requests.get(
-            f"{settings.DATA_API_BASE_URL}bundles?user_id={settings.DATA_API_USER_ID}",
-            headers=headers,
-            timeout=10
-        )
-        response.raise_for_status()
-        api_data = response.json().get("bundles", [])
-
-        # Normalize to match local bundle structure
-        for b in api_data:
-            api_bundles.append({
-                "id": f"api-{b['id']}",  # avoid conflicting with local bundle IDs
-                "name": b["name"],
-                "network": b["network"],
-                "price": float(b["price"]),
-                "is_api": True
-            })
-
-    except Exception:
-        messages.error(request, "Failed to load API bundles.")
-        api_bundles = []
-
-    # ---- FETCH LOCAL DB BUNDLES ----
-    local_bundles = []
-    for b in Bundle.objects.filter(is_active=True):
-        local_bundles.append({
-            "id": f"local-{b.id}",
-            "name": b.name,
-            "network": b.network,
-            "price": float(b.price),
-            "is_api": False,
-            "original_id": b.id
-        })
-
-    # MERGED
-    bundles = api_bundles + local_bundles
-
-    # ---- FORM SUBMISSION ----
     if request.method == "POST":
-        selected_id = request.POST.get("bundle_id")
-        quantity = int(request.POST.get("quantity"))
-
-        # find bundle
-        selected = next((x for x in bundles if str(x["id"]) == str(selected_id)), None)
-        if not selected:
-            messages.error(request, "Bundle not found.")
+        bundle_id = request.POST.get("bundle_id")
+        recipient = request.POST.get("recipient")  # phone number
+        if not bundle_id or not recipient:
+            messages.error(request, "Select a bundle and provide recipient phone number.")
             return redirect("buy_bundle")
 
-        total_price = selected["price"] * quantity
+        # find bundle
+        try:
+            b = Bundle.objects.get(pk=int(bundle_id))
+        except Exception:
+            messages.error(request, "Selected bundle not found.")
+            return redirect("buy_bundle")
 
-        if wallet_balance < total_price:
+        price = Decimal(str(b.price))
+        # Check wallet
+        if profile.wallet < price:
             messages.error(request, "Insufficient wallet balance.")
             return redirect("buy_bundle")
 
-        # Deduct wallet
-        user_profile.wallet -= total_price
-        user_profile.save()
+        # If bundle must be delivered via external Smartdatalink we call their API
+        api_result = None
+        order_success = False
+        api_total_cost = None
+        if getattr(settings, "SMART_BASE_URL", None) and b.send_via_api:
+            # call Smartdatalink create order
+            smart_url = settings.SMART_BASE_URL.rstrip("/") + "/create_order.php"
+            payload = {
+                "api_key": settings.SMART_API_KEY,
+                "api_secret": settings.SMART_API_SECRET,
+                "beneficiary": recipient,
+                "package_size": b.code or b.name  # prefer code if it's package_size
+            }
+            try:
+                r = requests.post(smart_url, json=payload, headers={"Authorization": f"Bearer {settings.SMART_API_KEY}", "Content-Type": "application/json"}, timeout=20)
+                api_result = r.json()
+                if api_result.get("status") == "success":
+                    order_success = True
+                    api_total_cost = Decimal(str(api_result.get("total_cost", price)))
+                else:
+                    order_success = False
+            except Exception as e:
+                order_success = False
 
-        # Record purchase
+            if not order_success:
+                messages.error(request, f"Failed to process order with data provider. Try again later.")
+                return redirect("buy_bundle")
+
+        # Deduct from buyer wallet
+        profile.wallet -= (api_total_cost if api_total_cost is not None else price)
+        profile.save()
+
+        # Save purchase record
         Purchase.objects.create(
             user=request.user,
-            bundle=None,
-            recipient=request.user.username,
-            amount=total_price,
+            bundle=b,
+            bundle_name=b.name,
+            network=b.network,
+            quantity=1,
+            amount=(api_total_cost if api_total_cost is not None else price),
+            recipient=recipient,
             status="PAID",
-            details=f"{quantity} × {selected['name']} ({selected['network']})"
+            created_at=timezone.now()
         )
 
-        messages.success(request, f"Successfully bought {quantity} × {selected['name']}")
-        return redirect("buy_bundle")
+        messages.success(request, f"Order placed for {b.name} to {recipient}.")
+        return redirect("purchases")
 
+    # GET view
     return render(request, "buy_bundle.html", {
         "wallet": wallet_balance,
         "bundles": bundles
     })
 
 
+# -------------------
+# SELL BUNDLE (agent-only). Agents can sell bundles to customer numbers.
+# When sold, we create Purchase (order) and optional Sale record.
+# -------------------
 @login_required
 def sell_bundle(request):
-    user_profile = request.user.userprofile
-
-    # Ensure user is an agent
-    if not user_profile.is_agent:
+    profile = request.user.userprofile
+    if not profile.is_agent:
         messages.error(request, "You need to become an agent first.")
-        return redirect("/agent-dashboard/")
+        return redirect("agent_dashboard")
 
-    # Fetch bundles from API
-    headers = {"Authorization": f"Bearer {settings.DATA_API_KEY}"}
-    try:
-        response = requests.get(
-            f"{settings.DATA_API_BASE_URL}bundles?user_id={settings.DATA_API_USER_ID}",
-            headers=headers,
-            timeout=10
-        )
-        response.raise_for_status()
-        bundles_data = response.json().get("bundles", [])
-    except requests.RequestException:
-        messages.error(request, "Failed to fetch bundles. Try again later.")
-        bundles_data = []
+    bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
+    bundles = [{
+        "id": b.id,
+        "name": b.name,
+        "code": b.code,
+        "network": b.network,
+        "price": float(b.price),
+        "send_via_api": b.send_via_api
+    } for b in bundles_qs]
 
     if request.method == "POST":
         bundle_id = request.POST.get("bundle_id")
-        quantity = int(request.POST.get("quantity", 1))
         customer_phone = request.POST.get("customer_phone")
+        if not bundle_id or not customer_phone:
+            messages.error(request, "Select a bundle and provide customer phone number.")
+            return redirect("sell_bundle")
 
-        # Find bundle from API
-        selected_bundle = next((b for b in bundles_data if str(b["id"]) == str(bundle_id)), None)
-        if not selected_bundle:
-            messages.error(request, "Selected bundle does not exist.")
-            return redirect("/sell-bundle/")
+        b = get_object_or_404(Bundle, pk=int(bundle_id))
+        price = Decimal(str(b.price))
 
-        total_price = Decimal(selected_bundle["price"]) * quantity
-        commission_rate = Decimal("0.05")  # 5% commission
+        # Agents sell: we create order via API if needed
+        order_success = True
+        api_total_cost = None
+        if getattr(settings, "SMART_BASE_URL", None) and b.send_via_api:
+            smart_url = settings.SMART_BASE_URL.rstrip("/") + "/create_order.php"
+            payload = {
+                "api_key": settings.SMART_API_KEY,
+                "api_secret": settings.SMART_API_SECRET,
+                "beneficiary": customer_phone,
+                "package_size": b.code or b.name
+            }
+            try:
+                r = requests.post(smart_url, json=payload, headers={"Authorization": f"Bearer {settings.SMART_API_KEY}", "Content-Type": "application/json"}, timeout=20)
+                api_result = r.json()
+                if api_result.get("status") == "success":
+                    api_total_cost = Decimal(str(api_result.get("total_cost", price)))
+                    order_success = True
+                else:
+                    order_success = False
+            except Exception:
+                order_success = False
 
-        # Create Sale record
+            if not order_success:
+                messages.error(request, "Failed to process API order. Try again.")
+                return redirect("sell_bundle")
+
+        # Create purchase record (agent performed a sale)
+        purchase_amount = api_total_cost if api_total_cost is not None else price
+        Purchase.objects.create(
+            user=request.user,
+            bundle=b,
+            bundle_name=b.name,
+            network=b.network,
+            quantity=1,
+            amount=purchase_amount,
+            recipient=customer_phone,
+            status="PAID",
+            created_at=timezone.now()
+        )
+
+        # create Sale record too for agent analytics
         Sale.objects.create(
             agent=request.user,
-            bundle=None,
-            price=total_price,
-            quantity=quantity
+            bundle=b,
+            price=purchase_amount,
+            quantity=1
         )
 
-        # Update agent profile with commission
-        agent_profile = user_profile.agent_profile
-        commission = total_price * commission_rate
-        agent_profile.commission_earned += commission
-        agent_profile.total_sales += quantity
-        agent_profile.total_sales_volume += total_price
-        agent_profile.save()
+        messages.success(request, f"Sold {b.name} to {customer_phone}.")
+        return redirect("agent_dashboard")
 
-        messages.success(
-            request,
-            f"Sold {quantity} × {selected_bundle['name']} to {customer_phone}. "
-            f"Commission earned: GHS {commission:.2f}"
-        )
-        return redirect("/agent-dashboard/")
+    return render(request, "sell_bundle.html", {"bundles": bundles})
 
-    return render(request, "sell_bundle.html", {"bundles": bundles_data})
 
+# -------------------
+# Contact Admin (display + message form)
+# -------------------
 @login_required
-def withdraw_commission(request):
-    # Ensure agent profile exists
-    agent_profile, created = AgentProfile.objects.get_or_create(user=request.user)
-    available_commission = agent_profile.commission_earned
+def contact_admin(request):
+    admin_email = "richmondobeng2004@gmail.com"
+    admin_whatsapp = "+233 55 637 3440"
 
     if request.method == "POST":
+        subject = request.POST.get("subject")
+        message_text = request.POST.get("message")
+        if subject and message_text:
+            ContactMessage.objects.create(
+                user=request.user,
+                email=request.user.email,
+                subject=subject,
+                message=message_text
+            )
+            messages.success(request, "Your message has been sent to admin.")
+            return redirect("contact_admin")
+        else:
+            messages.error(request, "Please fill in all fields.")
+
+    context = {
+        "admin_email": admin_email,
+        "admin_whatsapp": admin_whatsapp,
+    }
+    return render(request, "contact_admin.html", context)
+
+
+# -------------------
+# Admin views (simple) - view messages, set bundles, fund agent, etc.
+# We'll protect with superuser check.
+# -------------------
+def is_admin(user):
+    return user.is_superuser
+
+
+@user_passes_test(is_admin)
+def admin_dashboard(request):
+    # aggregate metrics
+    total_agents = UserProfile.objects.filter(is_agent=True).count()
+    total_wallets = UserProfile.objects.aggregate(total=models.Sum('wallet'))['total'] or Decimal("0.00")
+    total_orders_today = Purchase.objects.filter(created_at__date=timezone.now().date()).count()
+    bundles = Bundle.objects.all().order_by("network", "name")
+    contact_messages = ContactMessage.objects.all().order_by("-created_at")[:30]
+
+    context = {
+        "total_agents": total_agents,
+        "total_wallets": total_wallets,
+        "total_orders_today": total_orders_today,
+        "bundles": bundles,
+        "contact_messages": contact_messages,
+    }
+    return render(request, "admin_dashboard.html", context)
+
+
+# -------------------
+# Admin: Add / Edit Bundle (basic endpoints)
+# Protected by superuser decorator
+# -------------------
+@user_passes_test(is_admin)
+def admin_add_bundle(request):
+    if request.method == "POST":
+        name = request.POST.get("name")
+        code = request.POST.get("code")
+        network = request.POST.get("network")
+        price = float(request.POST.get("price") or 0)
+        send_via_api = bool(request.POST.get("send_via_api"))
+        Bundle.objects.create(name=name, code=code, network=network, price=price, send_via_api=send_via_api, is_active=True)
+        messages.success(request, "Bundle added.")
+        return redirect("admin_dashboard")
+    return render(request, "admin_add_bundle.html", {})
+
+
+@user_passes_test(is_admin)
+def admin_update_agent_wallet(request):
+    """
+    Admin can add/deduct funds from agent's wallet by email.
+    POST params:
+      - email
+      - amount (positive for add, negative for deduct)
+      - reason (optional)
+    """
+    if request.method == "POST":
+        email = request.POST.get("email")
+        amount = Decimal(request.POST.get("amount", "0"))
+        user = User.objects.filter(email=email).first()
+        if not user:
+            messages.error(request, "User not found.")
+            return redirect("admin_dashboard")
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.wallet += amount
+        profile.save()
+        messages.success(request, f"Updated wallet for {user.email}. New balance: GHS {profile.wallet:.2f}")
+        return redirect("admin_dashboard")
+    return render(request, "admin_update_agent_wallet.html", {})
+
+@user_passes_test(lambda u: u.is_superuser)
+def admin_set_registration_fee(request):
+    # get current registration fee from AppSettings
+    settings, _ = AppSettings.objects.get_or_create(id=1)  # or first()
+    
+    if request.method == "POST":
+        fee = request.POST.get("agent_registration_fee")
         try:
-            amount = Decimal(request.POST.get("amount"))
-            mobile_number = request.POST.get("mobile_number")
-
-            if amount <= 0 or amount > available_commission:
-                messages.error(request, "Invalid withdrawal amount.")
-                return redirect("withdraw_commission")
-
-            # ---------------------------
-            # STEP 1: CREATE PAYSTACK RECIPIENT
-            # ---------------------------
-            headers = {
-                "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-                "Content-Type": "application/json",
-            }
-
-            recipient_payload = {
-                "type": "mobile_money",
-                "name": request.user.username,
-                "account_number": mobile_number,
-                "currency": "GHS"
-            }
-
-            recipient_res = requests.post(
-                "https://api.paystack.co/transferrecipient",
-                json=recipient_payload,
-                headers=headers
-            ).json()
-
-            if not recipient_res.get("status"):
-                messages.error(request, f"Recipient creation failed: {recipient_res.get('message')}")
-                return redirect("withdraw_commission")
-
-            recipient_code = recipient_res["data"]["recipient_code"]
-
-            # ---------------------------
-            # STEP 2: SEND TRANSFER
-            # ---------------------------
-            transfer_payload = {
-                "source": "balance",
-                "amount": int(amount * 100),
-                "recipient": recipient_code,
-                "reason": "Agent Commission Withdrawal"
-            }
-
-            transfer_res = requests.post(
-                "https://api.paystack.co/transfer",
-                json=transfer_payload,
-                headers=headers
-            ).json()
-
-            if transfer_res.get("status"):
-                # Deduct commission
-                agent_profile.commission_earned -= amount
-                agent_profile.save()
-
-                # Save withdrawal record
-                Withdrawal.objects.create(
-                    agent=request.user,
-                    amount=amount,
-                    mobile_number=mobile_number,
-                    status="COMPLETED",
-                    processed_at=timezone.now()
-                )
-
-                messages.success(request, f"Withdrawal of GHS {amount:.2f} sent to {mobile_number} successfully!")
-            else:
-                messages.error(request, f"Transfer failed: {transfer_res.get('message')}")
-
-        except Exception as e:
-            messages.error(request, f"Error: {str(e)}")
-
-        return redirect("withdraw_commission")
-
-    # GET request renders page
-    return render(request, "withdraw_commission.html", {
-        "available_commission": available_commission
-    })
+            fee = float(fee)
+            settings.agent_registration_fee = fee
+            settings.save()
+            messages.success(request, f"Agent registration fee updated to GHS {fee:.2f}")
+            return redirect("admin_dashboard")
+        except ValueError:
+            messages.error(request, "Invalid fee entered. Please enter a number.")
+    
+    context = {"current_fee": settings.agent_registration_fee or 0}
+    return render(request, "admin_set_registration_fee.html", context)

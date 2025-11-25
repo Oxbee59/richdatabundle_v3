@@ -3,29 +3,11 @@
 
 <div class="page" style="max-width:1000px;margin:auto; padding:15px;">
 
-    <!-- BECOME AGENT PROMO -->
-    {% if not user.userprofile.is_agent %}
-    <div class="card promo">
-        <h3>Become an Active Agent!</h3>
-        <p>
-            Activate your agent status by paying the registration fee. Once active,
-            you can load your wallet, buy bundles, and start selling to earn commissions.
-        </p>
-        <button class="btn-primary" onclick="window.location.href='/become-agent/'">
-            Register Now
-        </button>
-    </div>
-    {% endif %}
-
     <!-- METRICS CARDS -->
     <div class="metrics-grid">
         <div class="metric-card primary">
             <h4>Wallet Balance</h4>
             <p>GHS {{ user.userprofile.wallet }}</p>
-        </div>
-        <div class="metric-card">
-            <h4>Total Commission</h4>
-            <p>GHS {{ user.userprofile.agent_profile.commission_earned|default:0 }}</p>
         </div>
         <div class="metric-card">
             <h4>Total Sales</h4>
@@ -42,11 +24,6 @@
         <button class="btn-primary" onclick="window.location.href='/load-wallet/'">💰 Load Wallet</button>
         <button class="btn-primary" onclick="window.location.href='/buy-bundle/'">📦 Buy Bundle</button>
         <button class="btn-primary" onclick="window.location.href='/sell-bundle/'">🛒 Sell Bundle</button>
-
-        <!-- NEW WITHDRAW BUTTON -->
-        <button class="btn-secondary" onclick="window.location.href='/withdraw-commission/'">
-            📤 Withdraw Commission
-        </button>
     </div>
 
     <!-- RECENT SALES TABLE -->
@@ -58,7 +35,6 @@
                 <th>Bundle</th>
                 <th>Price (GHS)</th>
                 <th>Qty</th>
-                <th>Commission</th>
             </tr>
             {% for sale in recent_sales %}
             <tr>
@@ -66,11 +42,10 @@
                 <td>{{ sale.bundle.name }}</td>
                 <td>{{ sale.price }}</td>
                 <td>{{ sale.quantity }}</td>
-                <td>GHS {{ sale.commission|default:0 }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" style="text-align:center; padding:10px;">No sales yet.</td>
+                <td colspan="4" style="text-align:center; padding:10px;">No sales yet.</td>
             </tr>
             {% endfor %}
         </table>
@@ -78,114 +53,28 @@
 
 </div>
 
-<!-- STYLES -->
 <style>
+.metrics-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:15px; margin-bottom:25px; }
+.metric-card { background:white; padding:20px; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.1); }
+.metric-card.primary { background:#6a0dad; color:white; }
+.metric-card p { font-size:22px; font-weight:bold; margin-top:5px; }
 
-    /* PROMO CARD */
-    .promo {
-        background:#f5e8ff;
-        border-left:5px solid #6a0dad;
-        margin-bottom:25px;
-        padding:20px;
-        border-radius:10px;
-    }
-    .promo h3 { color:#6a0dad; margin-bottom:10px; }
+.actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:15px; margin-bottom:25px; }
 
-    /* METRICS GRID */
-    .metrics-grid {
-        display:grid;
-        grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
-        gap:15px;
-        margin-bottom:25px;
-    }
-    .metric-card {
-        background:white;
-        padding:20px;
-        border-radius:12px;
-        box-shadow:0 3px 10px rgba(0,0,0,0.1);
-    }
-    .metric-card.primary {
-        background:#6a0dad;
-        color:white;
-    }
-    .metric-card p {
-        font-size:22px;
-        font-weight:bold;
-        margin-top:5px;
-    }
+.btn-primary { background:#6a0dad; color:white; padding:12px; border:none; border-radius:8px; font-weight:500; cursor:pointer; width:100%; }
+.btn-primary:hover { background:#501393; transform:scale(1.04); }
 
-    /* BUTTONS */
-    .btn-primary {
-        background:#6a0dad;
-        color:white;
-        padding:12px 18px;
-        border:none;
-        border-radius:8px;
-        font-weight:500;
-        cursor:pointer;
-        width:100%;
-    }
-    .btn-primary:hover {
-        background:#501393;
-        transform:scale(1.04);
-    }
+.table-container { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; background:white; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.08); }
+th { background:#f0e8ff; padding:12px; text-align:left; color:#6a0dad; }
+td { padding:12px; border-bottom:1px solid #eee; }
+.section-title { margin-bottom:10px; color:#6a0dad; font-weight:700; }
 
-    .btn-secondary {
-        background:white;
-        color:#6a0dad;
-        border:2px solid #6a0dad;
-        padding:12px 18px;
-        border-radius:8px;
-        font-weight:600;
-        cursor:pointer;
-        width:100%;
-    }
-    .btn-secondary:hover {
-        background:#f2e9ff;
-        transform:scale(1.04);
-    }
-
-    /* ACTION WRAPPER */
-    .actions {
-        display:grid;
-        grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-        gap:15px;
-        margin-bottom:25px;
-    }
-
-    /* TABLE */
-    .table-container { overflow-x:auto; }
-    table {
-        width:100%;
-        border-collapse:collapse;
-        background:white;
-        border-radius:10px;
-        overflow:hidden;
-        box-shadow:0 2px 10px rgba(0,0,0,0.08);
-    }
-    th {
-        background:#f0e8ff;
-        padding:12px;
-        text-align:left;
-        color:#6a0dad;
-    }
-    td {
-        padding:12px;
-        border-bottom:1px solid #eee;
-    }
-    .section-title {
-        margin-bottom:10px;
-        color:#6a0dad;
-        font-weight:700;
-    }
-
-    /* MOBILE FIXES */
-    @media (max-width:600px) {
-        .metric-card p { font-size:18px; }
-        .btn-primary, .btn-secondary { padding:10px; }
-        th, td { font-size:13px; }
-    }
-
+@media (max-width:600px){
+    .metric-card p { font-size:18px; }
+    .btn-primary { padding:10px; }
+    th, td { font-size:13px; }
+}
 </style>
 
 {% endblock %}

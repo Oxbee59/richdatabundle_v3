@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-card">
+    <h2 style="color:#6a0dad;text-align:center;">Contact Admin</h2>
+
+    <p>Reach out to our admin directly via:</p>
+    <ul>
+        <li>Email: {{ admin_email }}</li>
+        <li>WhatsApp: {{ admin_whatsapp }}</li>
+    </ul>
+
+    <form method="POST" style="margin-top:20px;">
+        {% csrf_token %}
+        <label>Subject</label>
+        <input type="text" name="subject" required style="width:100%; padding:10px; margin-bottom:10px; border-radius:6px;">
+
+        <label>Message</label>
+        <textarea name="message" required style="width:100%; padding:10px; border-radius:6px; min-height:120px;"></textarea>
+
+        <button class="btn-primary" type="submit" style="margin-top:15px;">Send Message</button>
+    </form>
+</div>
+{% endblock %}
