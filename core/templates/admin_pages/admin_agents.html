@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page" style="max-width:1000px;margin:auto;padding:15px;">
+    <h2 style="color:#6a0dad;">All Agents</h2>
+
+    <div class="table-container">
+        <table>
+            <tr>
+                <th>Username</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Wallet Balance</th>
+                <th>Total Purchases</th>
+            </tr>
+
+            {% for item in agent_data %}
+            <tr>
+                <td>{{ item.agent.user.username }}</td>
+                <td>{{ item.agent.user.phone }}</td>
+                <td>{{ item.agent.user.email }}</td>
+                <td>GHS {{ item.wallet }}</td>
+                <td>{{ item.total_purchases }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align:center;">No agents found.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}

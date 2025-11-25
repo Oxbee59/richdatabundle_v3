@@ -6,25 +6,35 @@
 
     <!-- METRICS CARDS -->
     <div class="metrics-grid">
-        <div class="metric-card primary">
+
+        <!-- Total Agents -->
+        <div class="metric-card primary clickable"
+             onclick="window.location.href='/superadmin/agents/'">
             <h4>Total Agents</h4>
             <p>{{ total_agents }}</p>
         </div>
-        <div class="metric-card">
+
+        <!-- Total Wallet Funds -->
+        <div class="metric-card clickable"
+             onclick="window.location.href='/superadmin/wallets/'">
             <h4>Total Wallet Funds</h4>
             <p>GHS {{ total_wallets }}</p>
         </div>
-        <div class="metric-card">
+
+        <!-- Orders Today -->
+        <div class="metric-card clickable"
+             onclick="window.location.href='/superadmin/orders-today/'">
             <h4>Orders Today</h4>
             <p>{{ total_orders_today }}</p>
         </div>
+
     </div>
 
     <!-- ACTION BUTTONS -->
     <div class="actions">
-        <button class="btn-primary" onclick="window.location.href='/admin/add-bundle/'">➕ Add Bundle</button>
-        <button class="btn-primary" onclick="window.location.href='/admin/update-wallet/'">💰 Fund Agent</button>
-        <button class="btn-primary" onclick="window.location.href='/admin/set-registration-fee/'">📋 Set Registration Fee</button>
+        <button class="btn-primary" onclick="window.location.href='/superadmin/add-bundle/'">➕ Add Bundle</button>
+        <button class="btn-primary" onclick="window.location.href='/superadmin/update-agent-wallet/'">💰 Fund Agent</button>
+        <button class="btn-primary" onclick="window.location.href='/superadmin/set-registration-fee/'">📋 Set Registration Fee</button>
     </div>
 
     <!-- RECENT CONTACT MESSAGES -->
@@ -58,7 +68,7 @@
         </table>
     </div>
 
-    <!-- BUNDLES -->
+    <!-- BUNDLES SECTION -->
     <h3 class="section-title" style="margin-top:30px;">Current Bundles</h3>
     <div class="bundle-grid">
         {% for b in bundles %}
@@ -78,7 +88,6 @@
 
 </div>
 
-<!-- STYLES -->
 <style>
 .metrics-grid {
     display:grid;
@@ -91,12 +100,20 @@
     padding:20px;
     border-radius:12px;
     box-shadow:0 3px 10px rgba(0,0,0,0.1);
+    cursor:pointer;
+    transition:0.2s ease;
 }
 .metric-card.primary {
     background:#6a0dad;
     color:white;
 }
+.metric-card:hover {
+    transform:scale(1.05);
+    box-shadow:0 4px 12px rgba(0,0,0,0.15);
+}
 .metric-card p { font-size:22px; font-weight:bold; margin-top:5px; }
+
+.clickable { cursor:pointer; }
 
 .actions {
     display:grid;
@@ -104,7 +121,6 @@
     gap:15px;
     margin-bottom:25px;
 }
-
 .btn-primary {
     background:#6a0dad;
     color:white;

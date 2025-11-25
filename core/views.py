@@ -18,6 +18,12 @@ from .models import (
     Sale, ContactMessage
 )
 from django.contrib.auth.models import User
+from django.contrib.admin.views.decorators import staff_member_required
+from django.utils.decorators import method_decorator
+from django.db.models import Sum
+from django.shortcuts import render
+from core.models import AgentProfile, Purchase, UserProfile
+from django.utils.timezone import now
 
 
 # -------------------
@@ -566,3 +572,41 @@ def admin_set_registration_fee(request):
     
     context = {"current_fee": settings.agent_registration_fee or 0}
     return render(request, "admin_set_registration_fee.html", context)
+
+@staff_member_required
+def admin_agents_view(request):
+    agents = AgentProfile.objects.select_related("user").all()
+
+    # Add extra computed fields
+    agent_data = []
+    for agent in agents:
+        total_purchases = Purchase.objects.filter(user=agent.user).count()
+        agent_data.append({
+            "agent": agent,
+            "wallet": agent.wallet_balance,
+            "total_purchases": total_purchases,
+        })
+
+    return render(request, "admin_pages/admin_agents.html", {
+        "agent_data": agent_data
+    })
+
+@staff_member_required
+def admin_wallets_view(request):
+    agents = AgentProfile.objects.select_related("user").all()
+    total_wallet_funds = agents.aggregate(total=Sum("wallet_balance"))["total"] or 0
+
+    return render(request, "admin_pages/admin_wallets.html", {
+        "agents": agents,
+        "total_wallet_funds": total_wallet_funds
+    })
+
+@staff_member_required
+def admin_orders_today_view(request):
+    today = now().date()
+    orders = Purchase.objects.filter(created_at__date=today).select_related("user", "bundle")
+
+    return render(request, "admin_pages/admin_orders_today.html", {
+        "orders": orders,
+        "date": today
+    })

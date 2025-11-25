@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page" style="max-width:900px;margin:auto;padding:15px;">
+    <h2 style="color:#6a0dad;">Wallet Overview</h2>
+
+    <p style="font-size:18px; margin-bottom:15px;">
+        <strong>Total Funds in System: </strong> GHS {{ total_wallet_funds }}
+    </p>
+
+    <div class="table-container">
+        <table>
+            <tr>
+                <th>Agent</th>
+                <th>Email</th>
+                <th>Wallet Balance</th>
+            </tr>
+
+            {% for agent in agents %}
+            <tr>
+                <td>{{ agent.user.username }}</td>
+                <td>{{ agent.user.email }}</td>
+                <td>GHS {{ agent.wallet_balance }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" style="text-align:center;">No agents found.</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}

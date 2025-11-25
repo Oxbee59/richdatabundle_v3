@@ -4,9 +4,12 @@ from core import views
 
 urlpatterns = [
     path("", lambda request: redirect("login"), name="home"),
+    
     path("login/", views.login_user, name="login"),
     path("signup/", views.signup_user, name="signup"),
     path("logout/", views.logout_user, name="logout"),
+
+    # Agent
     path("agent-dashboard/", views.agent_dashboard, name="agent_dashboard"),
     path("buy-bundle/", views.buy_bundle, name="buy_bundle"),
     path("purchases/", views.purchases, name="purchases"),
@@ -19,10 +22,13 @@ urlpatterns = [
     path("sell-bundle/", views.sell_bundle, name="sell_bundle"),
     path("contact-admin/", views.contact_admin, name="contact_admin"),
 
-    # admin functions
-    path("admin-dashboard/", views.admin_dashboard, name="admin_dashboard"),
-    path("admin/add-bundle/", views.admin_add_bundle, name="admin_add_bundle"),
-    path("admin/update-wallet/", views.admin_update_agent_wallet, name="admin_update_agent_wallet"),
-    path("admin/set-registration-fee/", views.admin_set_registration_fee, name="admin_set_registration_fee"),
-
+    # 🔥 CUSTOM SUPERADMIN DASHBOARD (no conflict)
+    path("superadmin-dashboard/", views.admin_dashboard, name="admin_dashboard"),
+    path("superadmin/add-bundle/", views.admin_add_bundle, name="admin_add_bundle"),
+    path("superadmin/update-wallet/", views.admin_update_agent_wallet, name="admin_update_agent_wallet"),
+    path("superadmin/set-registration-fee/", views.admin_set_registration_fee, name="admin_set_registration_fee"),
+    # NEW: Cards Pages
+    path("superadmin/agents/", views.admin_agents_view, name="admin_agents"),
+    path("superadmin/wallets/", views.admin_wallets_view, name="admin_wallets"),
+    path("superadmin/orders-today/", views.admin_orders_today_view, name="admin_orders_today"),
 ]
