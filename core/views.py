@@ -494,7 +494,7 @@ def is_admin(user):
     return user.is_superuser
 
 
-@user_passes_test(is_admin)
+@staff_member_required(login_url='/admin/login/')
 def admin_dashboard(request):
     # aggregate metrics
     total_agents = UserProfile.objects.filter(is_agent=True).count()
@@ -517,7 +517,7 @@ def admin_dashboard(request):
 # Admin: Add / Edit Bundle (basic endpoints)
 # Protected by superuser decorator
 # -------------------
-@user_passes_test(is_admin)
+@staff_member_required(login_url='/admin/login/')
 def admin_add_bundle(request):
     if request.method == "POST":
         name = request.POST.get("name")
@@ -531,7 +531,7 @@ def admin_add_bundle(request):
     return render(request, "admin_add_bundle.html", {})
 
 
-@user_passes_test(is_admin)
+@staff_member_required(login_url='/admin/login/')
 def admin_update_agent_wallet(request):
     """
     Admin can add/deduct funds from agent's wallet by email.
@@ -554,54 +554,67 @@ def admin_update_agent_wallet(request):
         return redirect("admin_dashboard")
     return render(request, "admin_update_agent_wallet.html", {})
 
+@staff_member_required(login_url='/admin/login/')
 @user_passes_test(lambda u: u.is_superuser)
 def admin_set_registration_fee(request):
-    # get current registration fee from AppSettings
-    settings, _ = AppSettings.objects.get_or_create(id=1)  # or first()
-    
+    settings = AppSettings.objects.first()  # assuming single row
     if request.method == "POST":
-        fee = request.POST.get("agent_registration_fee")
-        try:
-            fee = float(fee)
-            settings.agent_registration_fee = fee
-            settings.save()
-            messages.success(request, f"Agent registration fee updated to GHS {fee:.2f}")
-            return redirect("admin_dashboard")
-        except ValueError:
-            messages.error(request, "Invalid fee entered. Please enter a number.")
+        fee_str = request.POST.get("registration_fee")
+        if fee_str:
+            try:
+                fee = float(fee_str)
+                settings.registration_fee = fee
+                settings.save()
+                messages.success(request, "Registration fee updated successfully!")
+                return redirect("admin_set_registration_fee")
+            except ValueError:
+                messages.error(request, "Invalid fee value. Please enter a number.")
+        else:
+            messages.error(request, "Please enter a registration fee.")
     
-    context = {"current_fee": settings.agent_registration_fee or 0}
-    return render(request, "admin_set_registration_fee.html", context)
+    return render(request, "admin_set_registration_fee.html", {"settings": settings})
 
-@staff_member_required
+@staff_member_required(login_url='/admin/login/')
 def admin_agents_view(request):
-    agents = AgentProfile.objects.select_related("user").all()
-
-    # Add extra computed fields
-    agent_data = []
+    # Prefetch related UserProfile or Wallet to avoid multiple queries
+    agents = AgentProfile.objects.select_related('user', 'userprofile').all()
+    
+    # Pass wallet_balance safely
+    agent_list = []
     for agent in agents:
-        total_purchases = Purchase.objects.filter(user=agent.user).count()
-        agent_data.append({
-            "agent": agent,
-            "wallet": agent.wallet_balance,
-            "total_purchases": total_purchases,
+        wallet_balance = getattr(agent.userprofile, 'wallet_balance', 0)
+        agent_list.append({
+            "id": agent.id,
+            "username": agent.user.username,
+            "email": agent.user.email,
+            "wallet_balance": wallet_balance,
+            "joined_at": agent.created_at,
         })
 
-    return render(request, "admin_pages/admin_agents.html", {
-        "agent_data": agent_data
-    })
+    return render(request, "admin_agents.html", {"agents": agent_list})
 
-@staff_member_required
+@staff_member_required(login_url='/admin/login/')
 def admin_wallets_view(request):
-    agents = AgentProfile.objects.select_related("user").all()
-    total_wallet_funds = agents.aggregate(total=Sum("wallet_balance"))["total"] or 0
-
-    return render(request, "admin_pages/admin_wallets.html", {
-        "agents": agents,
-        "total_wallet_funds": total_wallet_funds
+    # Prefetch userprofile to access wallet_balance
+    agents = AgentProfile.objects.select_related('userprofile', 'user').all()
+    
+    wallet_list = []
+    total_wallets = 0
+    for agent in agents:
+        balance = getattr(agent.userprofile, 'wallet_balance', 0)
+        total_wallets += balance
+        wallet_list.append({
+            "username": agent.user.username,
+            "email": agent.user.email,
+            "wallet_balance": balance
+        })
+    
+    return render(request, "admin_wallets.html", {
+        "wallets": wallet_list,
+        "total_wallets": total_wallets
     })
 
-@staff_member_required
+@staff_member_required(login_url='/admin/login/')
 def admin_orders_today_view(request):
     today = now().date()
     orders = Purchase.objects.filter(created_at__date=today).select_related("user", "bundle")
