@@ -1,29 +1,29 @@
 # core/views.py
-from django.db import models
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login as auth_login, logout
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib import messages
-from django.conf import settings
-from django.urls import reverse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-
-import requests
-import json
 from decimal import Decimal
+import json
+import requests  # make sure 'requests' is installed in your environment
 
-from .models import (
-    UserProfile, AgentProfile, Bundle, Purchase, AppSettings,
-    Sale, ContactMessage
-)
-from django.contrib.auth.models import User
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.utils.decorators import method_decorator
+from django.contrib.auth import authenticate, login as auth_login, logout
+from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
-from django.shortcuts import render
-from core.models import AgentProfile, Purchase, UserProfile
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.utils.timezone import now, timezone
+from django.views.decorators.csrf import csrf_exempt
+
+from django.contrib.auth.models import User
+from .models import (
+    UserProfile,
+    AgentProfile,
+    Bundle,
+    Purchase,
+    AppSettings,
+    Sale,
+    ContactMessage
+)
 
 
 # -------------------
@@ -498,8 +498,9 @@ def is_admin(user):
 # -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_dashboard(request):
-    total_agents = UserProfile.objects.filter(is_agent=True).count()
-    total_wallets = UserProfile.objects.aggregate(total=models.Sum('wallet'))['total'] or Decimal("0.00")
+    # Safe total agents and wallets
+    total_agents = AgentProfile.objects.count()
+    total_wallets = sum([getattr(up, 'wallet', 0) for up in UserProfile.objects.all()])
     total_orders_today = Purchase.objects.filter(created_at__date=now().date()).count()
     bundles = Bundle.objects.all().order_by("network", "name")
     contact_messages = ContactMessage.objects.all().order_by("-created_at")[:30]
@@ -537,45 +538,139 @@ def admin_add_bundle(request):
         return redirect("admin_dashboard")
     return render(request, "admin_add_bundle.html", {})
 
-
 # -------------------
-# Update Agent Wallet
+# Fund Agent Wallet (real-time via Paystack)
 # -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_update_agent_wallet(request):
+    """
+    Admin funds an agent's wallet in real time via Paystack.
+    """
     if request.method == "POST":
         email = request.POST.get("email")
         amount = Decimal(request.POST.get("amount", "0"))
+        reason = request.POST.get("reason", "Admin wallet top-up")
+
+        if amount <= 0:
+            messages.error(request, "Enter a valid positive amount to fund.")
+            return redirect("admin_update_agent_wallet")
+
         user = User.objects.filter(email=email).first()
         if not user:
             messages.error(request, "User not found.")
             return redirect("admin_update_agent_wallet")
 
         profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.wallet += amount
-        profile.save()
-        messages.success(request, f"Updated wallet for {user.email}. New balance: GHS {profile.wallet:.2f}")
+
+        # Initialize Paystack transfer to the agent wallet
+        headers = {
+            "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "source": "balance",  # uses admin Paystack balance
+            "reason": reason,
+            "amount": int(amount * 100),  # Paystack expects minor units (cents/kobo)
+            "recipient": getattr(settings, "AGENT_PAYSTACK_RECIPIENT", None),  # recipient account code
+            "currency": "GHS"
+        }
+
+        try:
+            import requests
+            r = requests.post("https://api.paystack.co/transfer", json=payload, headers=headers, timeout=15)
+            res = r.json()
+
+            if res.get("status"):
+                # Only after successful transfer, update local wallet
+                profile.wallet += amount
+                profile.save()
+                messages.success(request, f"Funded wallet for {user.email} successfully! New balance: GHS {profile.wallet:.2f}")
+            else:
+                messages.warning(request, f"Paystack transfer failed: {res.get('message')}")
+        except Exception as e:
+            messages.warning(request, f"Paystack API error: {str(e)}")
+
         return redirect("admin_update_agent_wallet")
+
     return render(request, "admin_update_agent_wallet.html", {})
 
-
 # -------------------
+# Deduct Agent Wallet (real-time via Paystack)
+# -------------------
+@staff_member_required(login_url='/admin/login/')
+def admin_deduct_agent_wallet(request):
+    """
+    Deduct real money from agent wallet and send to admin Paystack account.
+    """
+    if request.method == "POST":
+        email = request.POST.get("email")
+        amount = Decimal(request.POST.get("amount", "0"))
+        reason = request.POST.get("reason", "Admin deduction")
+
+        if amount <= 0:
+            messages.error(request, "Enter a valid positive amount to deduct.")
+            return redirect("admin_deduct_agent_wallet")
+
+        user = User.objects.filter(email=email).first()
+        if not user:
+            messages.error(request, "User not found.")
+            return redirect("admin_deduct_agent_wallet")
+
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+
+        if profile.wallet < amount:
+            messages.error(request, "User does not have enough wallet balance.")
+            return redirect("admin_deduct_agent_wallet")
+
+        # Deduct locally first
+        profile.wallet -= amount
+        profile.save()
+
+        # Transfer from agent wallet to admin Paystack account
+        headers = {
+            "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "source": "balance",
+            "reason": reason,
+            "amount": int(amount * 100),
+            "recipient": getattr(settings, "ADMIN_PAYSTACK_RECIPIENT", None),
+            "currency": "GHS"
+        }
+
+        try:
+            import requests
+            r = requests.post("https://api.paystack.co/transfer", json=payload, headers=headers, timeout=15)
+            res = r.json()
+
+            if res.get("status"):
+                messages.success(request, f"Deducted GHS {amount:.2f} from {user.email} wallet successfully!")
+            else:
+                messages.warning(request, f"Deduction recorded locally but Paystack transfer failed: {res.get('message')}")
+        except Exception as e:
+            messages.warning(request, f"Deduction recorded locally but Paystack transfer error: {str(e)}")
+
+        return redirect("admin_deduct_agent_wallet")
+
+    return render(request, "admin_deduct_agent_wallet.html", {})
+
+
 # Set Registration Fee
 # -------------------
 @staff_member_required(login_url='/admin/login/')
-@user_passes_test(lambda u: u.is_superuser)
 def admin_set_registration_fee(request):
-    settings = AppSettings.objects.first()
-    if not settings:
-        settings = AppSettings.objects.create(registration_fee=0)
+    settings_obj = AppSettings.objects.first()
+    if not settings_obj:
+        settings_obj = AppSettings.objects.create(registration_fee=0)
 
     if request.method == "POST":
         fee_str = request.POST.get("registration_fee")
         if fee_str:
             try:
                 fee = float(fee_str)
-                settings.registration_fee = fee
-                settings.save()
+                settings_obj.registration_fee = fee
+                settings_obj.save()
                 messages.success(request, "Registration fee updated successfully!")
                 return redirect("admin_set_registration_fee")
             except ValueError:
@@ -583,28 +678,40 @@ def admin_set_registration_fee(request):
         else:
             messages.error(request, "Please enter a registration fee.")
 
-    return render(request, "admin_set_registration_fee.html", {"settings": settings})
+    return render(request, "admin_set_registration_fee.html", {"settings": settings_obj})
 
 
 # -------------------
-# View Agents
+# View Agents (with enable/disable)
 # -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_agents_view(request):
-    agents = AgentProfile.objects.select_related('user', 'userprofile').all()
-    
-    agent_list = []
+    agents = AgentProfile.objects.select_related('user').all()
+    agent_data = []
+
     for agent in agents:
-        wallet_balance = getattr(agent.userprofile, 'wallet', 0)  # use 'wallet' field
-        agent_list.append({
-            "id": agent.id,
-            "username": agent.user.username,
-            "email": agent.user.email,
-            "wallet_balance": wallet_balance,
-            "joined_at": agent.created_at,
+        profile = getattr(agent.user, "userprofile", None)
+        wallet = profile.wallet if profile else 0
+        total_purchases = Purchase.objects.filter(user=agent.user).count()
+        agent_data.append({
+            "agent": agent,
+            "wallet": wallet,
+            "total_purchases": total_purchases
         })
 
-    return render(request, "admin_agents.html", {"agents": agent_list})
+    return render(request, "admin_agents.html", {"agent_data": agent_data})
+
+# -------------------
+# Enable / Disable Agent
+# -------------------
+@staff_member_required(login_url='/admin/login/')
+def admin_toggle_agent(request, agent_id):
+    agent = get_object_or_404(AgentProfile, id=agent_id)
+    agent.is_active = not agent.is_active
+    agent.save()
+    status = "restored" if agent.is_active else "disabled"
+    messages.success(request, f"Agent {agent.user.email} has been {status}.")
+    return redirect("admin_agents")
 
 
 # -------------------
@@ -612,33 +719,39 @@ def admin_agents_view(request):
 # -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_wallets_view(request):
-    agents = AgentProfile.objects.select_related('userprofile', 'user').all()
-    
+    agents = AgentProfile.objects.select_related('user').all()
+
     wallet_list = []
-    total_wallets = Decimal("0.00")
+    total_wallet_funds = Decimal("0.00")
+
     for agent in agents:
-        balance = getattr(agent.userprofile, 'wallet', 0)
-        total_wallets += balance
+        profile = getattr(agent.user, "userprofile", None)
+        balance = profile.wallet if profile else 0
+        total_wallet_funds += balance
         wallet_list.append({
-            "username": agent.user.username,
-            "email": agent.user.email,
+            "user": agent.user,
             "wallet_balance": balance
         })
-    
+
     return render(request, "admin_wallets.html", {
-        "wallets": wallet_list,
-        "total_wallets": total_wallets
+        "agents": wallet_list,
+        "total_wallet_funds": total_wallet_funds
     })
 
 
 # -------------------
-# Orders Today
+# Orders Today (or all)
 # -------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_orders_today_view(request):
     today = now().date()
-    orders = Purchase.objects.filter(created_at__date=today).select_related("user", "bundle")
-    
+    show_all = request.GET.get("all") == "1"
+
+    if show_all:
+        orders = Purchase.objects.select_related("user", "bundle").all().order_by("-created_at")
+    else:
+        orders = Purchase.objects.filter(created_at__date=today).select_related("user", "bundle").order_by("-created_at")
+
     return render(request, "admin_orders_today.html", {
         "orders": orders,
         "date": today

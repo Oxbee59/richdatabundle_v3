@@ -195,3 +195,24 @@ class Sale(models.Model):
 
     def __str__(self):
         return f"{self.agent.username} sold {self.bundle.name} x{self.quantity}"
+
+class WalletTransaction(models.Model):
+    TRANSACTION_TYPE = (
+        ("FUND", "Fund Wallet"),
+        ("DEDUCT", "Deduct Wallet"),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="wallet_transactions")
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPE)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    reason = models.CharField(max_length=255, blank=True, null=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="performed_wallet_transactions")
+    created_at = models.DateTimeField(auto_now_add=True)
+    paystack_reference = models.CharField(max_length=200, blank=True, null=True)
+    success = models.BooleanField(default=True)  # True if transaction succeeded (Paystack or local)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"{self.user.username} | {self.transaction_type} | {self.amount} | {self.created_at.strftime('%Y-%m-%d %H:%M')}"

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+
 <div class="page" style="max-width:1000px;margin:auto; padding:15px;">
 
     <h2 style="color:#6a0dad; margin-bottom:20px;">Admin Dashboard</h2>
@@ -27,7 +28,8 @@
     <!-- ACTION BUTTONS -->
     <div class="actions">
         <a href="{% url 'admin_add_bundle' %}" class="btn-primary">➕ Add Bundle</a>
-        <a href="{% url 'admin_update_agent_wallet' %}" class="btn-primary">💰 Fund Agent</a>
+        <a href="{% url 'admin_update_agent_wallet' %}" class="btn-primary">💰 Fund Wallet</a>
+        <a href="{% url 'admin_deduct_agent_wallet' %}" class="btn-primary">💸 Deduct Wallet</a>
         <a href="{% url 'admin_set_registration_fee' %}" class="btn-primary">📋 Set Registration Fee</a>
     </div>
 
@@ -60,7 +62,7 @@
     <h3 class="section-title" style="margin-top:30px;">Current Bundles</h3>
     <div class="bundle-grid">
         {% for b in bundles %}
-        <a href="#" class="bundle-card">
+        <a href="{% url 'admin_add_bundle' %}" class="bundle-card">
             <strong>{{ b.network }} • {{ b.name }}</strong><br>
             GHS {{ b.price }} <br>
             {% if b.send_via_api %}
@@ -145,4 +147,5 @@ td { padding:12px; border-bottom:1px solid #eee; }
     th, td { font-size:13px; }
 }
 </style>
+
 {% endblock %}

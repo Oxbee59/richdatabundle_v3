@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="page" style="max-width:1000px;margin:auto; padding:15px;">
+<!-- TRUST & BENEFITS CARD -->
+<div class="trust-card">
+    <h2>Join {{ app_name }} as an Agent!</h2>
+    <p>Register at a low fee, load your wallet, buy & sell bundles at affordable prices.</p>
+    <a href="{% url 'become_agent' %}" class="btn-primary btn-large">Register Now</a>
+</div>
 
-    <!-- METRICS CARDS -->
+<!-- METRICS CARDS -->
+<div class="page" style="max-width:1000px;margin:auto; padding:15px;">
     <div class="metrics-grid">
         <div class="metric-card primary">
             <h4>Wallet Balance</h4>
@@ -50,17 +56,46 @@
             {% endfor %}
         </table>
     </div>
-
 </div>
 
 <style>
+/* Trust & Benefits Card */
+.trust-card {
+    max-width:400px;
+    margin:20px auto;
+    padding:25px 20px;
+    background:linear-gradient(145deg, #ffffff, #f0e8ff);
+    border-radius:16px;
+    box-shadow: 8px 8px 16px #d1c2f0, -8px -8px 16px #ffffff; /* 3D effect */
+    text-align:center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.trust-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 12px 12px 20px #d1c2f0, -12px -12px 20px #ffffff;
+}
+.trust-card h2 {
+    color:#6a0dad;
+    margin-bottom:10px;
+    font-size:1.6rem;
+}
+.trust-card p {
+    font-size:1rem;
+    margin-bottom:15px;
+}
+.trust-card .btn-primary.btn-large {
+    width:100%;
+    padding:12px 18px;
+    font-size:1rem;
+}
+
+/* Existing metrics and actions */
 .metrics-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:15px; margin-bottom:25px; }
 .metric-card { background:white; padding:20px; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.1); }
 .metric-card.primary { background:#6a0dad; color:white; }
 .metric-card p { font-size:22px; font-weight:bold; margin-top:5px; }
 
 .actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:15px; margin-bottom:25px; }
-
 .btn-primary { background:#6a0dad; color:white; padding:12px; border:none; border-radius:8px; font-weight:500; cursor:pointer; width:100%; }
 .btn-primary:hover { background:#501393; transform:scale(1.04); }
 
@@ -71,6 +106,9 @@ td { padding:12px; border-bottom:1px solid #eee; }
 .section-title { margin-bottom:10px; color:#6a0dad; font-weight:700; }
 
 @media (max-width:600px){
+    .trust-card { padding:20px 15px; }
+    .trust-card h2 { font-size:1.3rem; }
+    .trust-card p { font-size:0.95rem; }
     .metric-card p { font-size:18px; }
     .btn-primary { padding:10px; }
     th, td { font-size:13px; }

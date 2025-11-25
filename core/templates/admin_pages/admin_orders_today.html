@@ -9,16 +9,16 @@
                 <th>User</th>
                 <th>Bundle</th>
                 <th>Amount</th>
-                <th>Phone</th>
+                <th>Recipient</th>
                 <th>Time</th>
             </tr>
 
             {% for order in orders %}
             <tr>
                 <td>{{ order.user.username }}</td>
-                <td>{{ order.bundle.name }}</td>
+                <td>{{ order.bundle_name or order.bundle.name }}</td>
                 <td>GHS {{ order.amount }}</td>
-                <td>{{ order.phone }}</td>
+                <td>{{ order.recipient }}</td>
                 <td>{{ order.created_at|date:"H:i" }}</td>
             </tr>
             {% empty %}

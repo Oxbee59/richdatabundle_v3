@@ -1,25 +1,94 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="card" style="max-width:400px;margin:auto;text-align:center;">
-    <h2 style="margin-bottom:15px;">Become an Agent</h2>
+<div class="page" style="max-width:450px; margin:auto; padding:15px;">
 
-    <p>Registration Fee: <strong>GHS {{ registration_fee }}</strong></p>
-    <p>Your Wallet Balance: <strong>GHS {{ user.userprofile.wallet }}</strong></p>
+    <!-- 3D Agent Registration Card -->
+    <div class="agent-card">
+        <h2>Become an Agent</h2>
+        <p>Join {{ app_name }} and enjoy:</p>
+        <ul>
+            <li>Low registration fee</li>
+            <li>Load wallet, buy & sell bundles easily</li>
+            <li>Track your sales and earnings</li>
+        </ul>
 
-    {% if user.userprofile.is_agent %}
-        <p style="color:green;font-weight:bold;">You are already an active agent.</p>
-    {% else %}
-        {% if user.userprofile.wallet >= registration_fee %}
-            <form method="POST">
-                {% csrf_token %}
-                <button class="btn-primary" style="width:100%;margin-top:15px;">Pay & Activate Agent</button>
-            </form>
+        <p><strong>Registration Fee: GHS {{ registration_fee }}</strong></p>
+        <p>Your Wallet Balance: <strong>GHS {{ user.userprofile.wallet }}</strong></p>
+
+        {% if user.userprofile.is_agent %}
+            <p class="status-active">You are already an active agent.</p>
         {% else %}
-            <p style="color:red;">Insufficient wallet balance. Please <a href="/load-wallet/">load your wallet</a>.</p>
+            {% if user.userprofile.wallet >= registration_fee %}
+                <form method="POST">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary btn-large">Pay & Activate Agent</button>
+                </form>
+            {% else %}
+                <p class="status-warning">Insufficient wallet balance. Please <a href="/load-wallet/">load your wallet</a>.</p>
+            {% endif %}
         {% endif %}
-    {% endif %}
+    </div>
 
 </div>
+
+<style>
+.agent-card {
+    background: linear-gradient(145deg, #ffffff, #f0e8ff);
+    padding: 25px 20px;
+    border-radius: 16px;
+    box-shadow: 8px 8px 16px #d1c2f0, -8px -8px 16px #ffffff; /* 3D effect */
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.agent-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 12px 12px 20px #d1c2f0, -12px -12px 20px #ffffff;
+}
+.agent-card h2 {
+    color: #6a0dad;
+    margin-bottom: 15px;
+    font-size: 1.6rem;
+}
+.agent-card p, .agent-card li {
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+.agent-card ul {
+    text-align: left;
+    margin: 0 auto 15px auto;
+    padding-left: 20px;
+}
+.status-active {
+    color: green;
+    font-weight: bold;
+}
+.status-warning {
+    color: red;
+    font-weight: bold;
+}
+.btn-primary.btn-large {
+    width: 100%;
+    padding: 12px 18px;
+    font-size: 1rem;
+    margin-top: 15px;
+}
+
+@media (max-width:600px){
+    .agent-card {
+        padding: 20px 15px;
+    }
+    .agent-card h2 {
+        font-size: 1.4rem;
+    }
+    .agent-card p, .agent-card li {
+        font-size: 0.95rem;
+    }
+    .btn-primary.btn-large {
+        padding: 10px;
+        font-size: 0.95rem;
+    }
+}
+</style>
 
 {% endblock %}
