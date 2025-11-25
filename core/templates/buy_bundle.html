@@ -25,50 +25,57 @@
         <input type="text" name="recipient" required
                style="width:100%; padding:10px; border-radius:6px; margin-top:5px; margin-bottom:15px; border:1px solid #ccc;">
 
-        <label>Quantity</label>
-        <input type="number" min="1" value="1" name="quantity"
-               style="width:100%; padding:10px; border-radius:6px; margin-top:5px; margin-bottom:15px; border:1px solid #ccc;">
-
-        <div class="bundle-grid">
+        <label>Select Bundle</label>
+        <select id="bundle_select" required
+                style="width:100%; padding:12px; border-radius:8px; border:1px solid #ccc; margin-top:5px; margin-bottom:20px;">
+            <option value="" disabled selected>-- Choose a bundle --</option>
             {% for b in bundles %}
-            <div class="bundle-card" data-id="{{ b.id }}">
-                <div class="bundle-name">{{ b.network }} • {{ b.name }}</div>
-                <div class="bundle-price">GHS {{ b.price }}</div>
-                <small style="color:#6a0dad; font-weight:600;">
-                    {% if b.is_api %}API{% else %}Admin{% endif %}
-                </small>
-            </div>
+                <option value="{{ b.id }}">
+                    {{ b.network }} • {{ b.name }} — GHS {{ b.price }}
+                    {% if b.is_api %}(API){% else %}(Admin){% endif %}
+                </option>
             {% endfor %}
-        </div>
+        </select>
 
         <button class="btn-primary">Buy Bundle</button>
     </form>
 </div>
 
 <style>
-.page-card { max-width: 95%; width: 600px; margin:20px auto; background:#fff; padding:20px; border-radius:14px; box-shadow:0 3px 10px rgba(0,0,0,0.1); }
-.bundle-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; margin-top:15px; }
-.bundle-card { text-align:center; padding:12px; border-radius:10px; background:#fafafa; border:3px solid transparent; cursor:pointer; transition:0.3s; }
-.bundle-card.selected { border-color:#6a0dad; }
-.bundle-name { font-weight:bold; margin-bottom:5px; }
-.bundle-price { color:#6a0dad; font-weight:600; }
+.page-card {
+    max-width: 95%;
+    width: 600px;
+    margin:20px auto;
+    background:#fff;
+    padding:20px;
+    border-radius:14px;
+    box-shadow:0 3px 10px rgba(0,0,0,0.1);
+}
 
-.btn-primary { background:#6a0dad; color:white; width:100%; padding:12px; border:none; border-radius:8px; margin-top:20px; font-size:16px; font-weight:bold; cursor:pointer; transition:0.3s; }
+.btn-primary {
+    background:#6a0dad;
+    color:white;
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    margin-top:20px;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.3s;
+}
 .btn-primary:hover { background:#501393; transform:scale(1.02); }
 
 @media(max-width:600px){
     .page-card { width:95%; padding:15px; }
-    input, button { font-size:14px; padding:10px; }
+    input, button, select { font-size:14px; padding:10px; }
 }
 </style>
 
 <script>
-document.querySelectorAll(".bundle-card").forEach(card => {
-    card.onclick = () => {
-        document.querySelectorAll(".bundle-card").forEach(c => c.classList.remove("selected"));
-        card.classList.add("selected");
-        document.getElementById("bundle_id").value = card.getAttribute("data-id");
-    };
+document.getElementById("bundle_select").addEventListener("change", function() {
+    document.getElementById("bundle_id").value = this.value;
 });
 </script>
 

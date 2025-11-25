@@ -39,7 +39,13 @@
             </tr>
             {% for msg in contact_messages %}
             <tr>
-                <td>{{ msg.user.username if msg.user else msg.email }}</td>
+                <td>
+                    {% if msg.user %}
+                        {{ msg.user.username }}
+                    {% else %}
+                        {{ msg.email }}
+                    {% endif %}
+                </td>
                 <td>{{ msg.subject }}</td>
                 <td>{{ msg.message|truncatewords:15 }}</td>
                 <td>{{ msg.created_at|date:"M d, Y H:i" }}</td>
@@ -59,7 +65,11 @@
         <div class="bundle-card">
             <strong>{{ b.network }} • {{ b.name }}</strong><br>
             GHS {{ b.price }} <br>
-            {% if b.send_via_api %}<small style="color:#6a0dad;">API</small>{% else %}Admin{% endif %}
+            {% if b.send_via_api %}
+                <small style="color:#6a0dad;">API</small>
+            {% else %}
+                Admin
+            {% endif %}
         </div>
         {% empty %}
         <p>No bundles yet.</p>
