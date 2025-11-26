@@ -3,84 +3,226 @@
 
 {% block content %}
 <style>
-    .dashboard-card {
-        background: white;
-        border-radius: 12px;
-        padding: 25px;
-        box-shadow: 0 8px 18px rgba(90, 30, 161, 0.18);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        border: 1px solid #eee;
-    }
-
-    .dashboard-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(90, 30, 161, 0.25);
-    }
-
+    /* ----------------- GENERAL STYLES ----------------- */
     .dashboard-title {
-        color: #5a1ea1;
+        color: #6a0dad;
+        font-weight: 700;
+        font-size: 32px;
+        margin-bottom: 25px;
+    }
+    .section-title {
+        font-weight: 700;
+        color: #6a0dad;
+        border-left: 5px solid #6a0dad;
+        padding-left: 10px;
+        margin-top: 30px;
+        margin-bottom: 15px;
+    }
+
+    /* ----------------- METRIC CARDS ----------------- */
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 20px;
+        margin-bottom: 25px;
+    }
+    .metric-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        text-align: center;
+        box-shadow: 0 6px 20px rgba(90, 30, 161, 0.15);
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        border: 1px solid #eee;
+        text-decoration: none;
+        color: inherit;
+    }
+    .metric-card.primary {
+        background: #6a0dad;
+        color: white;
+    }
+    .metric-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 12px 30px rgba(90, 30, 161, 0.3);
+    }
+    .metric-card h5 {
+        margin-bottom: 10px;
+        font-weight: 600;
+        font-size: 18px;
+    }
+    .metric-card h1 {
         font-weight: 700;
         font-size: 28px;
     }
+    .metric-card small {
+        display: block;
+        color: #666;
+        margin-top: 5px;
+    }
 
-    .section-title {
+    /* ----------------- ACTION BUTTONS ----------------- */
+    .actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    .btn-action {
+        display: block;
+        text-align: center;
+        background: #6a0dad;
+        color: white;
+        padding: 12px;
+        border-radius: 10px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: 0.2s ease;
+    }
+    .btn-action:hover {
+        background: #501393;
+        transform: translateY(-2px);
+    }
+
+    /* ----------------- BUNDLE GRID ----------------- */
+    .bundle-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 15px;
+    }
+    .bundle-card {
+        background: #fafafa;
+        border-radius: 12px;
+        padding: 15px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(90, 30, 161, 0.1);
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        text-decoration: none;
+        color: inherit;
+    }
+    .bundle-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px rgba(90, 30, 161, 0.25);
+    }
+    .bundle-card small {
+        color: #6a0dad;
         font-weight: 600;
-        color: #5a1ea1;
-        border-left: 5px solid #5a1ea1;
-        padding-left: 10px;
+    }
+
+    /* ----------------- TABLE STYLES ----------------- */
+    .table-responsive {
+        overflow-x: auto;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 25px;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    }
+    th {
+        background: #f0e8ff;
+        color: #6a0dad;
+        padding: 12px;
+        text-align: left;
+    }
+    td {
+        padding: 12px;
+        border-bottom: 1px solid #eee;
+    }
+
+    /* ----------------- MESSAGES ----------------- */
+    .message-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .message-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #fff;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(90, 30, 161, 0.1);
+    }
+    .message-item small {
+        color: #666;
+        font-size: 13px;
+    }
+    .btn-delete {
+        background: #dc3545;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 6px;
+        text-decoration: none;
+        transition: 0.2s ease;
+    }
+    .btn-delete:hover {
+        background: #b52a38;
+        transform: translateY(-2px);
+    }
+
+    @media(max-width:600px){
+        .metric-card h1 { font-size: 22px; }
+        .btn-action { padding: 10px; font-size: 14px; }
+        th, td { font-size: 13px; }
+        .bundle-card { padding: 12px; }
     }
 </style>
 
 <div class="container mt-4">
 
     <!-- PAGE HEADER -->
-    <h2 class="dashboard-title mb-4">Admin Dashboard</h2>
+    <h2 class="dashboard-title">Admin Dashboard</h2>
 
-    <!-- STAT CARDS -->
-    <div class="row g-4">
-
-        <!-- Total Agents -->
-        <div class="col-md-4">
-            <div class="dashboard-card text-center">
-                <h5>Total Agents</h5>
-                <h1 style="font-weight:700; color:#333;">{{ total_agents }}</h1>
-            </div>
-        </div>
-
-        <!-- Total Wallet -->
-        <div class="col-md-4">
-            <a href="{% url 'admin_wallets' %}" style="text-decoration:none; color:inherit;">
-                <div class="dashboard-card text-center">
-                    <h5>Total Wallet Balance</h5>
-                    <h1 style="font-weight:700; color:#333;">₵{{ total_wallets }}</h1>
-                    <small class="text-muted">Click to view wallets</small>
-                </div>
-            </a>
-        </div>
-
-        <!-- Orders Today -->
-        <div class="col-md-4">
-            <a href="{% url 'admin_orders' %}" style="text-decoration:none; color:inherit;">
-                <div class="dashboard-card text-center">
-                    <h5>Orders Today</h5>
-                    <h1 style="font-weight:700; color:#333;">{{ total_orders_today }}</h1>
-                    <small class="text-muted">Click to view orders</small>
-                </div>
-            </a>
-        </div>
-
+    <!-- METRICS CARDS -->
+    <div class="metrics-grid">
+        <a href="{% url 'admin_agents' %}" class="metric-card primary">
+            <h5>Total Agents</h5>
+            <h1>{{ total_agents }}</h1>
+        </a>
+        <a href="{% url 'admin_wallets' %}" class="metric-card">
+            <h5>Total Wallet Balance</h5>
+            <h1>₵{{ total_wallets }}</h1>
+            <small>Click to view wallets</small>
+        </a>
+        <a href="{% url 'admin_orders' %}" class="metric-card">
+            <h5>Orders Today</h5>
+            <h1>{{ total_orders_today }}</h1>
+            <small>Click to view orders</small>
+        </a>
     </div>
 
+    <!-- ACTION BUTTONS -->
+    <div class="actions">
+        <a href="{% url 'admin_add_bundle' %}" class="btn-action">➕ Add Bundle</a>
+        <a href="{% url 'admin_update_agent_wallet' %}" class="btn-action">💰 Fund Wallet</a>
+        <a href="{% url 'admin_deduct_agent_wallet' %}" class="btn-action">💸 Deduct Wallet</a>
+        <a href="{% url 'admin_set_registration_fee' %}" class="btn-action">📋 Set Registration Fee</a>
+    </div>
 
     <!-- BUNDLES SECTION -->
-    <hr class="my-4">
     <h4 class="section-title">Bundles</h4>
-
-    <a href="{% url 'admin_add_bundle' %}" class="btn btn-success mb-3">+ Add Bundle</a>
+    <div class="bundle-grid">
+        {% for b in bundles %}
+        <a href="{% url 'admin_edit_bundle' b.id %}" class="bundle-card">
+            <strong>{{ b.network }} • {{ b.name }}</strong><br>
+            ₵{{ b.price }} <br>
+            {% if b.send_via_api %}
+                <small>API</small>
+            {% else %}
+                <small>Admin</small>
+            {% endif %}
+        </a>
+        {% empty %}
+            <p>No bundles yet.</p>
+        {% endfor %}
+    </div>
 
     <div class="table-responsive">
-        <table class="table table-striped table-bordered align-middle">
-            <thead class="table-dark">
+        <table>
+            <thead>
                 <tr>
                     <th>Name</th>
                     <th>Code</th>
@@ -90,7 +232,6 @@
                     <th>Actions</th>
                 </tr>
             </thead>
-
             <tbody>
                 {% for b in bundles %}
                 <tr>
@@ -100,44 +241,34 @@
                     <td>₵{{ b.price }}</td>
                     <td>
                         {% if b.send_via_api %}
-                            <span class="badge bg-success">Yes</span>
+                            Yes
                         {% else %}
-                            <span class="badge bg-secondary">No</span>
+                            No
                         {% endif %}
                     </td>
                     <td>
                         <a href="{% url 'admin_edit_bundle' b.id %}" class="btn btn-primary btn-sm">Edit</a>
-                        <a href="{% url 'admin_delete_bundle' b.id %}"
-                           class="btn btn-danger btn-sm"
-                           onclick="return confirm('Delete this bundle?')">Delete</a>
+                        <a href="{% url 'admin_delete_bundle' b.id %}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this bundle?')">Delete</a>
                     </td>
                 </tr>
-                {% empty %}
-                <tr><td colspan="6" class="text-center">No bundles found</td></tr>
                 {% endfor %}
             </tbody>
-
         </table>
     </div>
 
-
     <!-- MESSAGES SECTION -->
-    <hr class="my-4">
-
     <h4 class="section-title">Recent Messages</h4>
-
-    <div class="list-group mt-3">
+    <div class="message-list">
         {% for msg in contact_messages %}
-        <div class="list-group-item d-flex justify-content-between align-items-start">
+        <div class="message-item">
             <div>
-                <strong>{{ msg.name }}:</strong> {{ msg.message }} <br>
-                <small class="text-muted">{{ msg.created_at }}</small>
+                <strong>
+                    {% if msg.user %}{{ msg.user.username }}{% else %}{{ msg.email }}{% endif %}
+                </strong>:
+                {{ msg.message|truncatewords:20 }} <br>
+                <small>{{ msg.created_at|date:"M d, Y H:i" }}</small>
             </div>
-
-            <a href="{% url 'admin_delete_message' msg.id %}"
-               class="btn btn-danger btn-sm">
-                Delete
-            </a>
+            <a href="{% url 'admin_delete_message' msg.id %}" class="btn-delete">Delete</a>
         </div>
         {% empty %}
         <p>No messages.</p>
