@@ -4,7 +4,8 @@ from core import views
 
 urlpatterns = [
     path("", lambda request: redirect("login"), name="home"),
-    
+
+    # Authentication
     path("login/", views.login_user, name="login"),
     path("signup/", views.signup_user, name="signup"),
     path("logout/", views.logout_user, name="logout"),
@@ -22,17 +23,17 @@ urlpatterns = [
     path("sell-bundle/", views.sell_bundle, name="sell_bundle"),
     path("contact-admin/", views.contact_admin, name="contact_admin"),
 
-    # 🔥 SUPERADMIN
+    # Superadmin / Admin
     path("superadmin-dashboard/", views.admin_dashboard, name="admin_dashboard"),
     path("superadmin/add-bundle/", views.admin_add_bundle, name="admin_add_bundle"),
     path("superadmin/update-wallet/", views.admin_update_agent_wallet, name="admin_update_agent_wallet"),
     path("superadmin/set-registration-fee/", views.admin_set_registration_fee, name="admin_set_registration_fee"),
-    path('superadmin/deduct-wallet/', views.admin_deduct_agent_wallet, name='admin_deduct_agent_wallet'),
+    path("superadmin/deduct-wallet/", views.admin_deduct_agent_wallet, name="admin_deduct_agent_wallet"),
 
-    # Cards
-    path("superadmin/agents/", views.admin_agents_view, name="admin_agents"),
-    path("superadmin/wallets/", views.admin_wallets_view, name="admin_wallets"),
-    path("superadmin/orders-today/", views.admin_orders_today_view, name="admin_orders_today"),
+    # Cards / Admin Views
+    path("superadmin/agents/", views.admin_agents, name="admin_agents"),
+    path("superadmin/wallets/", views.admin_wallets, name="admin_wallets"),
+    path("superadmin/orders-today/", views.admin_orders, name="admin_orders_today"),
     path("superadmin/agents/toggle/<int:agent_id>/", views.admin_toggle_agent, name="admin_toggle_agent"),
 
     # Bundle Editing & Deleting
@@ -40,5 +41,5 @@ urlpatterns = [
     path("superadmin/bundles/delete/<int:bundle_id>/", views.admin_delete_bundle, name="admin_delete_bundle"),
 
     # Messages
-    path("superadmin/messages/delete/<int:msg_id>/", views.admin_delete_message, name="admin_delete_message"),
+    path("superadmin/messages/delete/<int:message_id>/", views.admin_delete_message, name="admin_delete_message"),
 ]
