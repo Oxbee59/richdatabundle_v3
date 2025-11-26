@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+
+<style>
+.admin-card {
+    background: #fff;
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 5px 18px rgba(90, 43, 214, 0.15);
+    border-left: 5px solid #5a2bd6;
+    max-width: 600px;
+    margin: 20px auto;
+}
+
+/* FORM INPUTS */
+.form-label {
+    font-weight: 600;
+    color: #5a1ea1;
+}
+
+.form-control {
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+.btn-update {
+    background: #5a2bd6;
+    color: white;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+    margin-right: 10px;
+}
+
+.btn-update:hover {
+    transform: scale(1.05);
+}
+
+.btn-cancel {
+    background: #ccc;
+    color: #333;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: 0.3s;
+}
+
+.btn-cancel:hover {
+    background: #bbb;
+}
+
+/* MOBILE RESPONSIVE */
+@media(max-width: 600px) {
+    .admin-card {
+        padding: 18px;
+        margin: 15px;
+    }
+}
+</style>
+
+<div class="admin-card">
+
+    <h2 style="color:#5a1ea1; font-weight:700; margin-bottom:20px;">Edit Bundle</h2>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label class="form-label">Bundle Name</label>
+            <input type="text" name="name" class="form-control" value="{{ bundle.name }}" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Bundle Code</label>
+            <input type="text" name="code" class="form-control" value="{{ bundle.code }}" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Network</label>
+            <select name="network" class="form-control" required>
+                <option {% if bundle.network == 'MTN' %}selected{% endif %}>MTN</option>
+                <option {% if bundle.network == 'AirtelTigo' %}selected{% endif %}>AirtelTigo</option>
+                <option {% if bundle.network == 'Glo' %}selected{% endif %}>Glo</option>
+                <option {% if bundle.network == 'Vodafone' %}selected{% endif %}>Vodafone</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Price (₵)</label>
+            <input type="number" step="0.01" name="price" value="{{ bundle.price }}" class="form-control" required>
+        </div>
+
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" name="send_via_api" id="apiCheck"
+                   {% if bundle.send_via_api %}checked{% endif %}>
+            <label class="form-check-label" for="apiCheck">Send via API</label>
+        </div>
+
+        <button type="submit" class="btn-update">Update</button>
+        <a href="{% url 'admin_dashboard' %}" class="btn-cancel">Cancel</a>
+    </form>
+
+</div>
+
+{% endblock %}

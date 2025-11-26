@@ -1,30 +1,129 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="page" style="max-width:900px;margin:auto;padding:15px;">
-    <h2 style="color:#6a0dad;">Wallet Overview</h2>
 
-    <p style="font-size:18px; margin-bottom:15px;">
-        <strong>Total Funds in System: </strong> GHS {{ total_wallet_funds }}
-    </p>
+<style>
+/* MAIN CARD */
+.admin-card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 5px 18px rgba(90, 43, 214, 0.15);
+    border-left: 5px solid #5a2bd6;
+    margin-bottom: 20px;
+}
 
-    <div class="table-container">
-        <table>
-            <tr>
-                <th>Agent</th>
-                <th>Email</th>
-                <th>Wallet Balance</th>
-            </tr>
+/* ALERT BOX */
+.wallet-alert {
+    background: #e7f1ff;
+    color: #0d3c91;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+}
 
-            {% for agent in agents %}
-            <tr>
-                <td>{{ agent.user.username }}</td>
-                <td>{{ agent.user.email }}</td>
-                <td>GHS {{ agent.wallet_balance }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="3" style="text-align:center;">No agents found.</td></tr>
-            {% endfor %}
+/* TABLE */
+.table-custom {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+}
+
+.table-custom thead th {
+    background: #5a2bd6;
+    color: white;
+    padding: 12px;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+}
+
+.table-custom tbody tr {
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    border-radius: 10px;
+}
+
+.table-custom td {
+    padding: 12px;
+    font-size: 15px;
+}
+
+/* MOBILE CARDS */
+.wallet-card {
+    display: none;
+}
+
+@media(max-width: 760px) {
+    .table-responsive { display: none; }
+
+    .wallet-card {
+        display: block;
+        background: white;
+        padding: 15px;
+        border-radius: 14px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+
+    .wallet-card p {
+        margin: 4px 0;
+        font-size: 15px;
+    }
+
+    .wallet-card .label {
+        font-weight: 600;
+        color: #5a2bd6;
+    }
+}
+</style>
+
+<h2 style="color:#5a1ea1; font-weight:700; margin-bottom:20px;">Wallet Overview</h2>
+
+<div class="admin-card">
+
+    <div class="wallet-alert">
+        Total Wallet Funds: ₵{{ total_wallet_funds }}
+    </div>
+
+    <!-- DESKTOP TABLE -->
+    <div class="table-responsive">
+        <table class="table-custom">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Username</th>
+                    <th>Balance</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for i in agents %}
+                <tr>
+                    <td>{{ i.agent.full_name }}</td>
+                    <td>{{ i.user.username }}</td>
+                    <td>₵{{ i.wallet_balance }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" style="text-align:center; padding:15px;">No data found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
         </table>
     </div>
+
+    <!-- MOBILE VIEW -->
+    {% for i in agents %}
+    <div class="wallet-card">
+        <p><span class="label">Agent:</span> {{ i.agent.full_name }}</p>
+        <p><span class="label">Username:</span> {{ i.user.username }}</p>
+        <p><span class="label">Balance:</span> ₵{{ i.wallet_balance }}</p>
+    </div>
+    {% endfor %}
+
 </div>
+
 {% endblock %}

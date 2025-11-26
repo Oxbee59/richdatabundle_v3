@@ -1,28 +1,152 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
 
-<h2 class="section-title">Orders Today</h2>
+<style>
+.admin-card {
+    background: #fff;
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 5px 18px rgba(90, 43, 214, 0.15);
+    border-left: 5px solid #5a2bd6;
+    margin-top: 20px;
+}
 
-<div class="table-container">
-<table>
-    <tr>
-        <th>User</th>
-        <th>Bundle</th>
-        <th>Amount (GHS)</th>
-        <th>Date</th>
-    </tr>
+/* TABLE */
+.table-custom {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+}
 
-    {% for o in orders %}
-    <tr>
-        <td>{{ o.user.username }}</td>
-        <td>{{ o.bundle.name }}</td>
-        <td>{{ o.amount }}</td>
-        <td>{{ o.timestamp|date:"M d, Y H:i" }}</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="4" style="text-align:center;">No orders today.</td></tr>
+.table-custom thead th {
+    background: #5a2bd6;
+    color: white;
+    padding: 14px;
+    font-weight: 600;
+    border-radius: 8px 8px 0 0;
+}
+
+.table-custom tbody tr {
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    border-radius: 10px;
+}
+
+.table-custom tbody tr td {
+    padding: 14px;
+    vertical-align: middle;
+    font-size: 14px;
+}
+
+/* BUTTONS */
+.btn-toggle {
+    padding: 8px 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-primary {
+    background: #5a2bd6;
+    color: white;
+}
+
+.btn-dark {
+    background: #333;
+    color: white;
+}
+
+.btn-toggle:hover {
+    transform: scale(1.05);
+}
+
+/* MOBILE CARD VIEW */
+@media(max-width: 760px) {
+    .table-responsive { display: none; }
+
+    .mobile-order-card {
+        background: white;
+        padding: 18px;
+        margin-bottom: 15px;
+        border-radius: 14px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .mobile-title {
+        color: #5a1ea1;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    .mobile-info p {
+        margin: 4px 0;
+        font-size: 14px;
+    }
+}
+</style>
+
+<div class="container mt-4">
+
+    <h2 style="color:#5a1ea1; font-weight:700; margin-bottom:20px;">
+        Orders {% if not show_all %}(Today - {{ today }}){% endif %}
+    </h2>
+
+    <div class="mb-3">
+        {% if show_all %}
+            <a href="?all=0" class="btn btn-toggle btn-primary">View Today's Orders</a>
+        {% else %}
+            <a href="?all=1" class="btn btn-toggle btn-dark">View All Orders</a>
+        {% endif %}
+    </div>
+
+    <!-- DESKTOP TABLE -->
+    <div class="admin-card table-responsive">
+        <table class="table-custom">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Bundle</th>
+                    <th>Network</th>
+                    <th>Price</th>
+                    <th>Recipient</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>{{ order.user.username }}</td>
+                    <td>{{ order.bundle.name }}</td>
+                    <td>{{ order.bundle.network }}</td>
+                    <td>₵{{ order.bundle.price }}</td>
+                    <td>{{ order.phone }}</td>
+                    <td>{{ order.created_at }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center" style="padding:15px;">No orders found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MOBILE VIEW -->
+    {% for order in orders %}
+    <div class="mobile-order-card">
+        <div class="mobile-title">{{ order.user.username }} - {{ order.bundle.name }}</div>
+        <div class="mobile-info">
+            <p><strong>Network:</strong> {{ order.bundle.network }}</p>
+            <p><strong>Price:</strong> ₵{{ order.bundle.price }}</p>
+            <p><strong>Recipient:</strong> {{ order.phone }}</p>
+            <p><strong>Date:</strong> {{ order.created_at }}</p>
+        </div>
+    </div>
     {% endfor %}
-</table>
+
 </div>
 
 {% endblock %}

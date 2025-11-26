@@ -1,63 +1,190 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="page" style="max-width:1000px;margin:auto;padding:15px;">
-    <h2 style="color:#6a0dad; margin-bottom:20px;">All Agents</h2>
+{% load static %}
 
-    <div class="table-container">
-        <table>
+{% block content %}
+
+<style>
+/* MAIN CARD */
+.admin-card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 5px 18px rgba(90, 43, 214, 0.15);
+    border-left: 5px solid #5a2bd6;
+    margin-bottom: 20px;
+}
+
+/* TABLE */
+.table-custom {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+}
+
+.table-custom thead th {
+    background: #5a2bd6;
+    color: white;
+    padding: 12px;
+    border-radius: 8px 8px 0 0;
+}
+
+.table-custom tbody tr {
+    background: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    border-radius: 10px;
+}
+
+.table-custom td {
+    padding: 12px;
+    font-size: 15px;
+}
+
+/* BADGES */
+.badge-active {
+    background: #28a745;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+}
+
+.badge-blocked {
+    background: #dc3545;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 6px;
+}
+
+/* BUTTONS */
+.toggle-btn {
+    padding: 8px 15px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.25s;
+}
+
+.toggle-btn:hover {
+    transform: scale(1.05);
+}
+
+.btn-disable {
+    background: #dc3545 !important;
+    color: white;
+}
+
+.btn-enable {
+    background: #28a745 !important;
+    color: white;
+}
+
+/* MOBILE CARDS */
+.agent-card {
+    display: none;
+}
+
+@media(max-width: 760px){
+    .table-responsive { display: none; }
+
+    .agent-card {
+        display: block;
+        background: #fff;
+        padding: 15px;
+        border-radius: 14px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+
+    .agent-card p {
+        margin: 4px 0;
+        font-size: 15px;
+    }
+}
+</style>
+
+<h2 style="color:#5a1ea1; font-weight:700; margin-bottom:20px;">Manage Agents</h2>
+
+<div class="admin-card">
+
+    <!-- DESKTOP TABLE -->
+    <div class="table-responsive">
+        <table class="table-custom">
             <thead>
                 <tr>
+                    <th>Agent</th>
                     <th>Username</th>
-                    <th>Phone</th>
-                    <th>Email</th>
-                    <th>Wallet Balance</th>
-                    <th>Total Purchases</th>
-                    <th>Actions</th>
+                    <th>Wallet</th>
+                    <th>Purchases</th>
+                    <th>Status</th>
+                    <th>Toggle</th>
                 </tr>
             </thead>
+
             <tbody>
-                {% for item in agent_data %}
+                {% for row in agent_data %}
                 <tr>
-                    <td>{{ item.agent.user.username }}</td>
-                    <td>{{ item.agent.user.phone|default:"N/A" }}</td>
-                    <td>{{ item.agent.user.email }}</td>
-                    <td>GHS {{ item.wallet }}</td>
-                    <td>{{ item.total_purchases }}</td>
+                    <td>{{ row.agent.full_name }}</td>
+                    <td>{{ row.agent.user.username }}</td>
+                    <td>₵{{ row.wallet }}</td>
+                    <td>{{ row.total_purchases }}</td>
+
                     <td>
-                        {% if item.agent.is_active %}
-                        <form method="POST" action="{% url 'admin_toggle_agent' item.agent.id %}" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-primary" style="background:green; color:white; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">
-                                Disable
-                            </button>
-                        </form>
+                        {% if row.agent.is_active %}
+                            <span class="badge-active">Active</span>
                         {% else %}
-                        <form method="POST" action="{% url 'admin_toggle_agent' item.agent.id %}" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-primary" style="background:red; color:white; padding:6px 12px; border-radius:6px; border:none; cursor:pointer;">
-                                Enable
-                            </button>
-                        </form>
+                            <span class="badge-blocked">Blocked</span>
                         {% endif %}
                     </td>
+
+                    <td>
+                        <a href="{% url 'admin_toggle_agent' row.agent.id %}">
+                            {% if row.agent.is_active %}
+                                <button class="toggle-btn btn-disable">Disable</button>
+                            {% else %}
+                                <button class="toggle-btn btn-enable">Enable</button>
+                            {% endif %}
+                        </a>
+                    </td>
                 </tr>
+
                 {% empty %}
                 <tr>
-                    <td colspan="6" style="text-align:center;">No agents found.</td>
+                    <td colspan="6" style="text-align:center; padding:15px;">No agents found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+
+    <!-- MOBILE VIEW -->
+    {% for row in agent_data %}
+    <div class="agent-card">
+
+        <p><strong>{{ row.agent.full_name }}</strong></p>
+        <p>Username: {{ row.agent.user.username }}</p>
+        <p>Wallet: ₵{{ row.wallet }}</p>
+        <p>Purchases: {{ row.total_purchases }}</p>
+
+        <p>Status:
+            {% if row.agent.is_active %}
+                <span class="badge-active">Active</span>
+            {% else %}
+                <span class="badge-blocked">Blocked</span>
+            {% endif %}
+        </p>
+
+        <a href="{% url 'admin_toggle_agent' row.agent.id %}">
+            {% if row.agent.is_active %}
+                <button class="toggle-btn btn-disable" style="width:100%; margin-top:8px;">Disable</button>
+            {% else %}
+                <button class="toggle-btn btn-enable" style="width:100%; margin-top:8px;">Enable</button>
+            {% endif %}
+        </a>
+
+    </div>
+    {% endfor %}
+
 </div>
 
-<style>
-.table-container { overflow-x:auto; }
-table { width:100%; border-collapse:collapse; background:white; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.08);}
-th { background:#f0e8ff; padding:12px; text-align:left; color:#6a0dad; }
-td { padding:12px; border-bottom:1px solid #eee; }
-@media(max-width:600px){
-    th, td { font-size:13px; }
-}
-</style>
 {% endblock %}

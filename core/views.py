@@ -16,7 +16,7 @@ from django.utils.timezone import now, timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from django.contrib.auth.models import User
-from .models import (
+from core.models import (
     UserProfile,
     AgentProfile,
     Bundle,
@@ -494,51 +494,31 @@ def is_admin(user):
     return user.is_superuser
 
 
-# -------------------
-# Admin Dashboard
-# -------------------
-@staff_member_required(login_url='/admin/login/')
+# ----------------------------------
+# 1. ADMIN DASHBOARD
+# ----------------------------------
+@staff_member_required(login_url="/admin/login/")
 def admin_dashboard(request):
-    # Safe total agents and wallets
     total_agents = AgentProfile.objects.count()
-    total_wallets = sum([getattr(up, 'wallet', 0) for up in UserProfile.objects.all()])
+
+    total_wallets = Decimal("0.00")
+    for p in UserProfile.objects.all():
+        total_wallets += getattr(p, "wallet", 0)
+
     total_orders_today = Purchase.objects.filter(created_at__date=now().date()).count()
     bundles = Bundle.objects.all().order_by("network", "name")
-    contact_messages = ContactMessage.objects.all().order_by("-created_at")[:30]
+    contact_messages = ContactMessage.objects.all().order_by("-created_at")[:40]
 
-    context = {
+    active_fee = AppSettings.objects.first()
+
+    return render(request, "admin_dashboard.html", {
         "total_agents": total_agents,
         "total_wallets": total_wallets,
         "total_orders_today": total_orders_today,
         "bundles": bundles,
         "contact_messages": contact_messages,
-    }
-    return render(request, "admin_dashboard.html", context)
-
-
-# -------------------
-# Add Bundle
-# -------------------
-@staff_member_required(login_url='/admin/login/')
-def admin_add_bundle(request):
-    if request.method == "POST":
-        name = request.POST.get("name")
-        code = request.POST.get("code")
-        network = request.POST.get("network")
-        price = float(request.POST.get("price") or 0)
-        send_via_api = request.POST.get("send_via_api") == "on"
-        Bundle.objects.create(
-            name=name,
-            code=code,
-            network=network,
-            price=price,
-            send_via_api=send_via_api,
-            is_active=True
-        )
-        messages.success(request, "Bundle added.")
-        return redirect("admin_dashboard")
-    return render(request, "admin_add_bundle.html", {})
-
+        "active_fee": active_fee,
+    })
 # -------------------
 # Fund Agent Wallet (real-time via Paystack)
 # -------------------
@@ -657,81 +637,63 @@ def admin_deduct_agent_wallet(request):
     return render(request, "admin_deduct_agent_wallet.html", {})
 
 
-# Set Registration Fee
-# -------------------
-@staff_member_required(login_url='/admin/login/')
-def admin_set_registration_fee(request):
-    settings_obj = AppSettings.objects.first()
-    if not settings_obj:
-        settings_obj = AppSettings.objects.create(registration_fee=0)
+# ----------------------------------
+# 2. VIEW & MANAGE AGENTS
+# ----------------------------------
+@staff_member_required(login_url="/admin/login/")
+def admin_agents(request):
+    agents = AgentProfile.objects.select_related("user")
 
-    if request.method == "POST":
-        fee_str = request.POST.get("registration_fee")
-        if fee_str:
-            try:
-                fee = float(fee_str)
-                settings_obj.registration_fee = fee
-                settings_obj.save()
-                messages.success(request, "Registration fee updated successfully!")
-                return redirect("admin_set_registration_fee")
-            except ValueError:
-                messages.error(request, "Invalid fee value. Please enter a number.")
-        else:
-            messages.error(request, "Please enter a registration fee.")
-
-    return render(request, "admin_set_registration_fee.html", {"settings": settings_obj})
-
-
-# -------------------
-# View Agents (with enable/disable)
-# -------------------
-@staff_member_required(login_url='/admin/login/')
-def admin_agents_view(request):
-    agents = AgentProfile.objects.select_related('user').all()
     agent_data = []
+    for ag in agents:
+        profile = getattr(ag.user, "userprofile", None)
+        wallet = getattr(profile, "wallet", 0)
+        total_purchases = Purchase.objects.filter(user=ag.user).count()
 
-    for agent in agents:
-        profile = getattr(agent.user, "userprofile", None)
-        wallet = profile.wallet if profile else 0
-        total_purchases = Purchase.objects.filter(user=agent.user).count()
         agent_data.append({
-            "agent": agent,
+            "agent": ag,
             "wallet": wallet,
-            "total_purchases": total_purchases
+            "total_purchases": total_purchases,
         })
 
-    return render(request, "admin_agents.html", {"agent_data": agent_data})
+    return render(request, "admin_agents.html", {
+        "agent_data": agent_data
+    })
 
-# -------------------
-# Enable / Disable Agent
-# -------------------
-@staff_member_required(login_url='/admin/login/')
+
+@staff_member_required(login_url="/admin/login/")
 def admin_toggle_agent(request, agent_id):
     agent = get_object_or_404(AgentProfile, id=agent_id)
     agent.is_active = not agent.is_active
     agent.save()
-    status = "restored" if agent.is_active else "disabled"
-    messages.success(request, f"Agent {agent.user.email} has been {status}.")
+
+    messages.success(request,
+        f"Agent {agent.user.username} has been "
+        f"{'enabled' if agent.is_active else 'disabled'}."
+    )
+
     return redirect("admin_agents")
 
 
-# -------------------
-# View Wallets
-# -------------------
-@staff_member_required(login_url='/admin/login/')
-def admin_wallets_view(request):
-    agents = AgentProfile.objects.select_related('user').all()
+# ----------------------------------
+# 3. WALLET OVERVIEW
+# ----------------------------------
+@staff_member_required(login_url="/admin/login/")
+def admin_wallets(request):
+    agents = AgentProfile.objects.select_related("user")
 
     wallet_list = []
     total_wallet_funds = Decimal("0.00")
 
-    for agent in agents:
-        profile = getattr(agent.user, "userprofile", None)
-        balance = profile.wallet if profile else 0
+    for ag in agents:
+        profile = getattr(ag.user, "userprofile", None)
+        balance = getattr(profile, "wallet", 0)
         total_wallet_funds += balance
+
         wallet_list.append({
-            "user": agent.user,
-            "wallet_balance": balance
+            "agent": ag,
+            "user": ag.user,
+            "wallet_balance": balance,
         })
 
     return render(request, "admin_wallets.html", {
@@ -740,20 +702,105 @@ def admin_wallets_view(request):
     })
 
 
-# -------------------
-# Orders Today (or all)
-# -------------------
-@staff_member_required(login_url='/admin/login/')
-def admin_orders_today_view(request):
-    today = now().date()
+# ----------------------------------
+# 4. ORDER HISTORY (FULL)
+# ----------------------------------
+@staff_member_required(login_url="/admin/login/")
+def admin_orders(request):
     show_all = request.GET.get("all") == "1"
 
     if show_all:
-        orders = Purchase.objects.select_related("user", "bundle").all().order_by("-created_at")
+        orders = Purchase.objects.all().select_related("user", "bundle").order_by("-created_at")
     else:
-        orders = Purchase.objects.filter(created_at__date=today).select_related("user", "bundle").order_by("-created_at")
+        orders = Purchase.objects.filter(created_at__date=now().date()) \
+            .select_related("user", "bundle").order_by("-created_at")
 
     return render(request, "admin_orders_today.html", {
         "orders": orders,
-        "date": today
+        "today": now().date(),
+        "show_all": show_all,
+    })
+
+
+# ----------------------------------
+# 5. ADD / EDIT / DELETE BUNDLE
+# ----------------------------------
+@staff_member_required(login_url="/admin/login/")
+def admin_add_bundle(request):
+    if request.method == "POST":
+        Bundle.objects.create(
+            name=request.POST["name"],
+            code=request.POST["code"],
+            network=request.POST["network"],
+            price=float(request.POST["price"]),
+            send_via_api=request.POST.get("send_via_api") == "on",
+            is_active=True
+        )
+
+        messages.success(request, "Bundle added successfully.")
+        return redirect("admin_dashboard")
+
+    return render(request, "admin_add_bundle.html")
+
+
+@staff_member_required(login_url="/admin/login/")
+def admin_edit_bundle(request, bundle_id):
+    bundle = get_object_or_404(Bundle, id=bundle_id)
+
+    if request.method == "POST":
+        bundle.name = request.POST["name"]
+        bundle.code = request.POST["code"]
+        bundle.price = float(request.POST["price"])
+        bundle.network = request.POST["network"]
+        bundle.send_via_api = request.POST.get("send_via_api") == "on"
+        bundle.save()
+
+        messages.success(request, "Bundle updated successfully.")
+        return redirect("admin_dashboard")
+
+    return render(request, "admin_edit_bundle.html", {
+        "bundle": bundle
+    })
+
+
+@staff_member_required(login_url="/admin/login/")
+def admin_delete_bundle(request, bundle_id):
+    bundle = get_object_or_404(Bundle, id=bundle_id)
+    bundle.delete()
+
+    messages.success(request, "Bundle deleted successfully.")
+    return redirect("admin_dashboard")
+
+
+# ----------------------------------
+# 6. DELETE CONTACT MESSAGE
+# ----------------------------------
+@staff_member_required(login_url="/admin/login/")
+def admin_delete_message(request, message_id):
+    msg = get_object_or_404(ContactMessage, id=message_id)
+    msg.delete()
+    messages.success(request, "Message deleted.")
+    return redirect("admin_dashboard")
+
+
+# ----------------------------------
+# 7. REGISTRATION FEE WITH HISTORY
+# ----------------------------------
+@staff_member_required(login_url="/admin/login/")
+def admin_set_registration_fee(request):
+    settings_obj = AppSettings.objects.first()
+
+    if request.method == "POST":
+        fee = Decimal(request.POST.get("fee", 0))
+        settings_obj.registration_fee = fee
+        settings_obj.save()
+
+        messages.success(request, "Registration fee updated!")
+        return redirect("admin_set_registration_fee")
+
+    fee_history = AppSettings.objects.order_by("-updated_at")[:20]
+
+    return render(request, "admin_set_registration_fee.html", {
+        "settings": settings_obj,
+        "fee_history": fee_history
     })
