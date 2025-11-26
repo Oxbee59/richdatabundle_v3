@@ -33,7 +33,8 @@ urlpatterns = [
     # Cards / Admin Views
     path("superadmin/agents/", views.admin_agents, name="admin_agents"),
     path("superadmin/wallets/", views.admin_wallets, name="admin_wallets"),
-    path("superadmin/orders-today/", views.admin_orders, name="admin_orders_today"),
+    path("superadmin/orders-today/", views.admin_orders, name="admin_orders"),
+
     path("superadmin/agents/toggle/<int:agent_id>/", views.admin_toggle_agent, name="admin_toggle_agent"),
 
     # Bundle Editing & Deleting
