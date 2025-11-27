@@ -14,7 +14,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils.timezone import now, timezone
 from django.views.decorators.csrf import csrf_exempt
-from account.models import Agent
+from core.models import Agent
 from transaction.models import WalletTransaction
 from django.http import JsonResponse
 from django.core.mail import send_mail
