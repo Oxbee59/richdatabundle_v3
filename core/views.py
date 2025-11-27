@@ -14,8 +14,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils.timezone import now, timezone
 from django.views.decorators.csrf import csrf_exempt
-from core.models import Agent
-from transaction.models import WalletTransaction
 from django.http import JsonResponse
 from django.core.mail import send_mail
 from core.models import UserProfile
@@ -534,9 +532,7 @@ def admin_dashboard(request):
 def admin_update_agent_wallet(request):
     agent = None
 
-    # ---------------------------------------------------------
-    # SEARCH (simple GET search field)
-    # ---------------------------------------------------------
+    # SEARCH
     if request.GET.get("search_email"):
         email = request.GET.get("search_email")
         try:
@@ -544,9 +540,7 @@ def admin_update_agent_wallet(request):
         except User.DoesNotExist:
             messages.error(request, "No agent found with that email.")
 
-    # ---------------------------------------------------------
     # FUND WALLET
-    # ---------------------------------------------------------
     if request.method == "POST":
         email = request.POST.get("email")
         amount = Decimal(request.POST.get("amount", "0"))
@@ -564,9 +558,7 @@ def admin_update_agent_wallet(request):
 
         profile = agent.userprofile
 
-        # -----------------------------------------------------
-        # PAYSTACK TRANSFER (LIVE READY)
-        # -----------------------------------------------------
+        # PAYSTACK TRANSFER
         headers = {
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
             "Content-Type": "application/json"
@@ -588,22 +580,18 @@ def admin_update_agent_wallet(request):
                 timeout=10
             )
             res = r.json()
-
             if not res.get("status"):
                 messages.error(request, f"Paystack Error: {res.get('message')}")
                 return redirect("admin_update_agent_wallet")
-
         except Exception as e:
             messages.error(request, f"Paystack API error: {str(e)}")
             return redirect("admin_update_agent_wallet")
 
-        # -----------------------------------------------------
         # CREDIT WALLET LOCALLY
-        # -----------------------------------------------------
         profile.wallet += amount
         profile.save()
 
-        tx = WalletTransaction.objects.create(
+        WalletTransaction.objects.create(
             user=agent,
             transaction_type="FUND",
             amount=amount,
@@ -612,31 +600,22 @@ def admin_update_agent_wallet(request):
             success=True
         )
 
-        # -----------------------------------------------------
-        # SEND SMS/EMAIL ALERT
-        # -----------------------------------------------------
         send_wallet_alert(agent, amount, "CREDIT")
 
-        messages.success(
-            request,
-            f"Successfully funded GHS {amount} to {agent.email}"
-        )
-
+        messages.success(request, f"Successfully funded GHS {amount} to {agent.email}")
         return redirect("admin_update_agent_wallet")
 
     return render(request, "admin_update_agent_wallet.html", {"agent": agent})
+
 
 # --------------------------------------------------------------------
 # DEDUCT AGENT WALLET — REAL PAYSTACK TRANSFER + SEARCH SUPPORT
 # --------------------------------------------------------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_deduct_agent_wallet(request):
-
     agent = None
 
-    # ----------------------------
-    # SEARCH AGENT
-    # ----------------------------
+    # SEARCH
     if request.GET.get("search_email"):
         email = request.GET.get("search_email")
         try:
@@ -644,9 +623,7 @@ def admin_deduct_agent_wallet(request):
         except User.DoesNotExist:
             messages.error(request, "No agent found with that email.")
 
-    # ----------------------------
-    # INITIATE DEDUCTION
-    # ----------------------------
+    # DEDUCTION
     if request.method == "POST":
         email = request.POST.get("email")
         amount = Decimal(request.POST.get("amount", "0"))
@@ -662,10 +639,8 @@ def admin_deduct_agent_wallet(request):
             messages.error(request, "Agent not found.")
             return redirect("admin_deduct_agent_wallet")
 
-        # Create Paystack reference
         reference = f"ADM_DED_{uuid.uuid4().hex[:12].upper()}"
 
-        # Create pending transaction
         tx = WalletTransaction.objects.create(
             user=agent,
             transaction_type="DEDUCT",
@@ -676,10 +651,7 @@ def admin_deduct_agent_wallet(request):
             success=False
         )
 
-        # Initialize Paystack
-        callback_url = request.build_absolute_uri(
-            reverse("paystack_deduct_callback")
-        )
+        callback_url = request.build_absolute_uri(reverse("paystack_deduct_callback"))
 
         response = paystack_initialize(
             email=agent.email,
@@ -692,32 +664,26 @@ def admin_deduct_agent_wallet(request):
             messages.error(request, "Failed to initialize Paystack payment.")
             return redirect("admin_deduct_agent_wallet")
 
-        # Redirect agent to Paystack checkout
-        authorization_url = response["data"]["authorization_url"]
-
-        return redirect(authorization_url)
+        return redirect(response["data"]["authorization_url"])
 
     return render(request, "admin_deduct_agent_wallet.html", {"agent": agent})
-def paystack_deduct_callback(request):
 
+
+def paystack_deduct_callback(request):
     reference = request.GET.get("reference")
-    
     tx = get_object_or_404(WalletTransaction, reference=reference)
 
-    # VERIFY PAYMENT
     url = f"https://api.paystack.co/transaction/verify/{reference}"
     headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
     verify = requests.get(url, headers=headers).json()
 
     if verify["data"]["status"] == "success":
-
         profile = tx.user.userprofile
         profile.wallet -= tx.amount
         profile.save()
 
         tx.success = True
         tx.save()
-
         send_wallet_alert(tx.user, tx.amount, "DEBIT")
 
         messages.success(request, f"Deduction successful for {tx.user.email}")
@@ -725,59 +691,41 @@ def paystack_deduct_callback(request):
 
     tx.success = False
     tx.save()
-
     messages.error(request, "Payment failed. No deduction made.")
     return redirect("admin_deduct_agent_wallet")
 
 
+# AGENT AUTOCOMPLETE
 @staff_member_required(login_url='/admin/login/')
 def agent_autocomplete(request):
-    """Return instant search results for agents (users with is_agent=True)."""
     q = request.GET.get("q", "").strip()
-
     if q == "":
         return JsonResponse({"results": []})
 
-    users = User.objects.filter(
-        userprofile__is_agent=True,
-        email__icontains=q
-    )[:10]
+    users = User.objects.filter(userprofile__is_agent=True, email__icontains=q)[:10]
+    results = [{"email": u.email, "username": u.username, "id": u.id} for u in users]
+    return JsonResponse({"results": results})
 
-    results = [
-        {
-            "email": u.email,
-            "username": u.username,
-            "id": u.id
-        }
-        for u in users
-    ]
 
-    return JsonResponse({"results": results})  
-
+# LIVE WALLET BALANCE
 @login_required
 def live_wallet_balance(request, user_id):
     profile = get_object_or_404(UserProfile, user__id=user_id)
     return JsonResponse({"wallet": float(profile.wallet)})
 
-def send_wallet_alert(user, amount, tx_type):
-    """Send email/SMS alerts on wallet credit/debit."""
 
-    subject = f"Wallet { 'Credit' if tx_type=='CREDIT' else 'Deduction' } Alert"
+# SEND WALLET ALERT
+def send_wallet_alert(user, amount, tx_type):
+    subject = f"Wallet {'Credit' if tx_type=='CREDIT' else 'Deduction'} Alert"
     message = (
         f"Hello {user.username},\n\n"
-        f"Your wallet was { 'credited' if tx_type=='CREDIT' else 'debited' } "
-        f"₵{amount}.\n\n"
-        f"Your new balance is: ₵{user.userprofile.wallet}\n"
+        f"Your wallet was {'credited' if tx_type=='CREDIT' else 'debited'} "
+        f"₵{amount}.\n\nYour new balance is: ₵{user.userprofile.wallet}\n"
     )
 
-    # EMAIL
-    send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=True
-    )
+    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=True)
+    # SMS stub: send_sms(user.phone, message)
+
 
     # SMS (Stub - replace with actual SMS provider)
     # send_sms(user.phone, message)
@@ -807,11 +755,12 @@ def admin_wallet_transactions(request):
 # ----------------------------------
 # 2. VIEW & MANAGE AGENTS
 # ----------------------------------
+# ADMIN AGENTS LIST
 @staff_member_required(login_url="/admin/login/")
 def admin_agents(request):
     agents = AgentProfile.objects.select_related("user")
-
     agent_data = []
+
     for ag in agents:
         profile = getattr(ag.user, "userprofile", None)
         wallet = getattr(profile, "wallet", 0)
@@ -825,9 +774,7 @@ def admin_agents(request):
             "email": email,
         })
 
-    return render(request, "admin_agents.html", {
-        "agent_data": agent_data
-    })
+    return render(request, "admin_agents.html", {"agent_data": agent_data})
 
 
 @staff_member_required(login_url="/admin/login/")
