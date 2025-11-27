@@ -112,6 +112,7 @@
             <thead>
                 <tr>
                     <th>Agent</th>
+                    <th>Email</th>
                     <th>Username</th>
                     <th>Wallet</th>
                     <th>Purchases</th>
@@ -124,6 +125,7 @@
                 {% for row in agent_data %}
                 <tr>
                     <td>{{ row.agent.full_name }}</td>
+                    <td>{{ row.email }}</td>
                     <td>{{ row.agent.user.username }}</td>
                     <td>₵{{ row.wallet }}</td>
                     <td>{{ row.total_purchases }}</td>
@@ -149,19 +151,19 @@
 
                 {% empty %}
                 <tr>
-                    <td colspan="6" style="text-align:center; padding:15px;">No agents found.</td>
+                    <td colspan="7" style="text-align:center; padding:15px;">No agents found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-
     <!-- MOBILE VIEW -->
     {% for row in agent_data %}
     <div class="agent-card">
 
         <p><strong>{{ row.agent.full_name }}</strong></p>
+        <p>Email: {{ row.email }}</p>
         <p>Username: {{ row.agent.user.username }}</p>
         <p>Wallet: ₵{{ row.wallet }}</p>
         <p>Purchases: {{ row.total_purchases }}</p>

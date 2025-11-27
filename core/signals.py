@@ -2,33 +2,32 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
-
 from .models import UserProfile, AgentProfile
 
 @receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
+def create_user_and_agent_profiles(sender, instance, created, **kwargs):
     """
-    Ensure a UserProfile always exists for every User.
+    Automatically create UserProfile for every new user.
+    If user is flagged as agent, create AgentProfile too.
     """
     if created:
+        # Create UserProfile
         UserProfile.objects.create(user=instance)
+
+        # Optionally create AgentProfile if user is an agent
+        if getattr(instance, 'is_agent', False):
+            AgentProfile.objects.create(
+                user=instance,
+                commission_earned=0,
+                total_sales=0,
+                total_sales_volume=0,
+                is_active=True  # can default to active if desired
+            )
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
     """
-    Ensure profile saved (useful if future fields change).
+    Ensure UserProfile always saved when User is saved.
     """
-    try:
-        instance.userprofile.save()
-    except Exception:
-        # if userprofile does not exist for some reason, create it
-        UserProfile.objects.get_or_create(user=instance)
-
-@receiver(post_save, sender=User)
-def create_profiles(sender, instance, created, **kwargs):
-    if created:
-        # Create user profile
-        profile = UserProfile.objects.create(user=instance)
-
-        # Create agent profile linked to user (but inactive by default)
-        AgentProfile.objects.create(user=instance, commission_earned=0, total_sales=0, total_sales_volume=0)
+    profile, _ = UserProfile.objects.get_or_create(user=instance)
+    profile.save()

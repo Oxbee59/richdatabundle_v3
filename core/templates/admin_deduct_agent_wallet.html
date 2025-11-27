@@ -1,49 +1,183 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div class="page" style="max-width:600px; margin:auto; padding:20px;">
-    <h2 style="color:#6a0dad; margin-bottom:20px;">Deduct Agent Wallet</h2>
 
-    <form method="POST">
-        {% csrf_token %}
-        <div style="margin-bottom:15px;">
-            <label for="email" style="font-weight:600;">Agent Email:</label>
-            <input type="email" name="email" id="email" placeholder="agent@example.com" required
-                style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc;">
-        </div>
+<div class="page-card">
+    <h2 style="text-align:center;color:#6a0dad;">Deduct Agent Wallet</h2>
 
-        <div style="margin-bottom:15px;">
-            <label for="amount" style="font-weight:600;">Amount (GHS):</label>
-            <input type="number" name="amount" id="amount" placeholder="e.g. 50.00" step="0.01" min="0" required
-                style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc;">
-        </div>
+    <!-- MESSAGE ALERTS -->
+    {% if messages %}
+        {% for msg in messages %}
+            {% if msg.tags == 'success' %}
+                <div class="alert-success">{{ msg }}</div>
+            {% else %}
+                <div class="alert-error">{{ msg }}</div>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
 
-        <div style="margin-bottom:20px;">
-            <label for="reason" style="font-weight:600;">Reason:</label>
-            <input type="text" name="reason" id="reason" placeholder="Deduction reason" required
-                style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc;">
-        </div>
-
-        <button type="submit" style="background:#6a0dad; color:white; padding:12px 20px; border:none; border-radius:8px; cursor:pointer;">
-            💸 Deduct Wallet
-        </button>
+    <!-- SEARCH BAR WITH AUTOCOMPLETE -->
+    <form method="GET" style="margin-bottom:20px;" autocomplete="off">
+        <input type="email" id="search_email" name="search_email" placeholder="Search agent by email..."
+               required class="input-style">
+        <div id="suggestions" class="suggestions-box"></div>
+        <button class="btn-primary" type="submit">Search</button>
     </form>
 
-    <div style="margin-top:30px;">
-        <a href="{% url 'admin_dashboard' %}" style="color:#6a0dad; text-decoration:underline;">← Back to Dashboard</a>
+    {% if agent_data %}
+    <div style="margin-bottom:20px; padding:10px; background:#f6f0ff; border-radius:8px;">
+        <strong>Agent:</strong> {{ agent_data.user.username }} <br>
+        <strong>Email:</strong> {{ agent_data.user.email }} <br>
+        <strong>Wallet:</strong> GHS <span id="wallet_balance">{{ agent_data.wallet }}</span>
     </div>
+    {% endif %}
+
+    <!-- DEDUCT WALLET FORM -->
+    <form method="POST">
+        {% csrf_token %}
+        <label>Agent Email</label>
+        <input type="email" name="email" required placeholder="agent@example.com"
+               value="{{ agent_data.user.email|default:'' }}" class="input-style">
+
+        <label>Amount to Deduct (GHS)</label>
+        <input type="number" step="0.01" name="amount" required placeholder="Enter amount"
+               class="input-style">
+
+        <label>Reason</label>
+        <input type="text" name="reason" required placeholder="Deduction reason"
+               class="input-style">
+
+        <button class="btn-primary" type="submit">💸 Deduct Wallet</button>
+    </form>
+
+    <!-- TRANSACTION HISTORY -->
+    {% if agent_data %}
+    <h3 style="margin-top:30px;">Recent Transactions</h3>
+    <table class="transactions-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Reason</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in agent_data.user.wallet_transactions.all|slice:":10" %}
+            <tr>
+                <td>{{ tx.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ tx.transaction_type }}</td>
+                <td>GHS {{ tx.amount }}</td>
+                <td>{{ tx.reason }}</td>
+                <td>{{ tx.success|yesno:"Success,Failed" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align:center;">No transactions yet</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
 </div>
 
 <style>
-input:focus {
-    outline:none;
+.page-card { 
+    max-width:600px; 
+    margin:auto; 
+    background:white; 
+    padding:25px; 
+    border-radius:15px; 
+    box-shadow:0 3px 10px rgba(0,0,0,0.1);
+}
+.input-style {
+    width:100%;
+    padding:10px;
+    margin-bottom:15px;
+    border-radius:6px;
+    border:1px solid #ccc;
+}
+.input-style:focus {
     border-color:#6a0dad;
     box-shadow:0 0 5px rgba(106,13,173,0.5);
 }
-button:hover {
-    background:#501393;
-    transform:scale(1.02);
+.btn-primary { 
+    background:#6a0dad; 
+    color:white; 
+    padding:12px; 
+    border:none; 
+    border-radius:8px; 
+    cursor:pointer; 
+    width:100%; 
+    font-weight:600;
+}
+.btn-primary:hover { 
+    background:#501393; 
+    transform:scale(1.03); 
+}
+.alert-success {
+    padding:12px;
+    margin-bottom:10px;
+    border-radius:8px;
+    color:white;
+    background:#28a745;
+}
+.alert-error {
+    padding:12px;
+    margin-bottom:10px;
+    border-radius:8px;
+    color:white;
+    background:#dc3545;
+}
+.transactions-table {
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+}
+.transactions-table th, .transactions-table td {
+    border:1px solid #ddd;
+    padding:8px;
+    text-align:left;
+}
+.transactions-table th {
+    background:#6a0dad;
+    color:white;
+}
+.suggestions-box {
+    position:relative;
+    background:white;
+    border:1px solid #ccc;
+    max-height:150px;
+    overflow-y:auto;
+    border-radius:6px;
+}
+.suggestions-box div {
+    padding:8px;
+    cursor:pointer;
+}
+.suggestions-box div:hover {
+    background:#f0f0f0;
 }
 </style>
+
+<script>
+document.getElementById('search_email')?.addEventListener('input', function() {
+    let query = this.value;
+    if(query.length < 2) { document.getElementById('suggestions').innerHTML = ''; return; }
+    fetch(`/api/agent-search/?q=${query}`)
+        .then(res => res.json())
+        .then(data => {
+            let html = '';
+            data.forEach(agent => {
+                html += `<div onclick="selectAgent('${agent.email}')">${agent.email}</div>`;
+            });
+            document.getElementById('suggestions').innerHTML = html;
+        });
+});
+
+function selectAgent(email) {
+    document.getElementById('search_email').value = email;
+    document.getElementById('suggestions').innerHTML = '';
+}
+</script>
 
 {% endblock %}
