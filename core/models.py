@@ -32,25 +32,26 @@ class UserProfile(models.Model):
 # AGENT PROFILE
 # ---------------------------
 class AgentProfile(models.Model):
-    """
-    Lightweight agent profile. Commission and manual withdrawals are removed.
-    We keep counters for sales/volume for reporting but they are optional.
-    """
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+
+    # payment flag
+    has_paid = models.BooleanField(default=False)
+
+    # sales counters (optional)
     total_sales = models.IntegerField(default=0)
     total_sales_volume = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
 
-    # API key for agent (if you expose agent-specific API)
-    api_key = models.CharField(max_length=100, unique=True, blank=True)
+    # API KEYS
+    public_key = models.CharField(max_length=120, unique=True, null=False, blank=False)
+    secret_key = models.CharField(max_length=120, unique=True, null=False, blank=False)
 
-    def save(self, *args, **kwargs):
-        # generate API key on first save
-        if not self.api_key:
-            self.api_key = secrets.token_hex(24)
-        super().save(*args, **kwargs)
+    def generate_keys(self):
+        self.public_key = "PUB-" + secrets.token_hex(16)
+        self.secret_key = "SEC-" + secrets.token_hex(32)
+        self.save()
 
     def __str__(self):
-        return f"Agent: {self.user.username}"
+        return f"AgentProfile: {self.user.username}"
 
 
 # ---------------------------
@@ -146,16 +147,21 @@ class AppSettings(models.Model):
     """
     Global admin settings. You can keep configuring keys here or prefer environment variables.
     """
+
     agent_registration_fee = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
 
-    # Paystack placeholders (we recommend moving secrets to environment variables)
+    # Paystack placeholders
     PAYSTACK_PUBLIC_KEY = models.CharField(max_length=200, blank=True)
     PAYSTACK_SECRET_KEY = models.CharField(max_length=200, blank=True)
     PAYSTACK_WEBHOOK_SECRET = models.CharField(max_length=200, blank=True)
 
-    # Data API key / url (optional, admin can also store in env)
+    # Data API
     DATA_API_KEY = models.CharField(max_length=200, blank=True)
     DATA_API_BASE_URL = models.CharField(max_length=300, blank=True)
+
+    # NEW FIELDS FOR HISTORY
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Application Setting"

@@ -1,94 +1,63 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-
-<div class="page" style="max-width:450px; margin:auto; padding:15px;">
-
-    <!-- 3D Agent Registration Card -->
-    <div class="agent-card">
-        <h2>Become an Agent</h2>
-        <p>Join {{ app_name }} and enjoy:</p>
-        <ul>
-            <li>Low registration fee</li>
-            <li>Load wallet, buy & sell bundles easily</li>
-            <li>Track your sales and earnings</li>
-        </ul>
-
-        <p><strong>Registration Fee: GHS {{ registration_fee }}</strong></p>
-        <p>Your Wallet Balance: <strong>GHS {{ user.userprofile.wallet }}</strong></p>
-
-        {% if user.userprofile.is_agent %}
-            <p class="status-active">You are already an active agent.</p>
-        {% else %}
-            {% if user.userprofile.wallet >= registration_fee %}
-                <form method="POST">
-                    {% csrf_token %}
-                    <button type="submit" class="btn-primary btn-large">Pay & Activate Agent</button>
-                </form>
-            {% else %}
-                <p class="status-warning">Insufficient wallet balance. Please <a href="/load-wallet/">load your wallet</a>.</p>
-            {% endif %}
-        {% endif %}
-    </div>
-
-</div>
 
 <style>
 .agent-card {
-    background: linear-gradient(145deg, #ffffff, #f0e8ff);
-    padding: 25px 20px;
+    background: #fff;
+    padding: 20px;
     border-radius: 16px;
-    box-shadow: 8px 8px 16px #d1c2f0, -8px -8px 16px #ffffff; /* 3D effect */
-    text-align: center;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.agent-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 12px 12px 20px #d1c2f0, -12px -12px 20px #ffffff;
-}
-.agent-card h2 {
-    color: #6a0dad;
-    margin-bottom: 15px;
-    font-size: 1.6rem;
-}
-.agent-card p, .agent-card li {
-    font-size: 1rem;
-    margin-bottom: 10px;
-}
-.agent-card ul {
-    text-align: left;
-    margin: 0 auto 15px auto;
-    padding-left: 20px;
-}
-.status-active {
-    color: green;
-    font-weight: bold;
-}
-.status-warning {
-    color: red;
-    font-weight: bold;
-}
-.btn-primary.btn-large {
-    width: 100%;
-    padding: 12px 18px;
-    font-size: 1rem;
-    margin-top: 15px;
+    box-shadow: 0 5px 18px rgba(90, 43, 214, 0.15);
+    border-left: 5px solid #5a2bd6;
+    margin-bottom: 25px;
 }
 
-@media (max-width:600px){
-    .agent-card {
-        padding: 20px 15px;
-    }
-    .agent-card h2 {
-        font-size: 1.4rem;
-    }
-    .agent-card p, .agent-card li {
-        font-size: 0.95rem;
-    }
-    .btn-primary.btn-large {
-        padding: 10px;
-        font-size: 0.95rem;
-    }
+.fee-box {
+    background: #f8f4ff;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border-left: 4px solid #5a2bd6;
 }
+
+.btn-join {
+    background: #5a2bd6;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-join:hover {
+    transform: scale(1.05);
+}
+
 </style>
+
+<h2 style="color:#5a1ea1; font-weight:700; margin-bottom:20px;">Become an Agent</h2>
+
+<div class="agent-card">
+
+    <div class="fee-box">
+        <h4 style="color:#5a2bd6; margin-bottom:5px;">Registration Fee</h4>
+        <p style="font-size:18px; font-weight:600;">₵{{ registration_fee }}</p>
+    </div>
+
+    <p style="margin-bottom:20px;">
+        To become an agent, the registration fee will be deducted from your wallet balance.
+        Please ensure you have enough funds before proceeding.
+    </p>
+
+    <p><strong>Wallet Balance:</strong> ₵{{ user_profile.wallet }}</p>
+
+    <form method="POST" style="margin-top:20px;">
+        {% csrf_token %}
+        <button class="btn-join">Become Agent</button>
+    </form>
+</div>
 
 {% endblock %}

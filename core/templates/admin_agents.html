@@ -1,192 +1,134 @@
 {% extends "base.html" %}
 {% load static %}
-
 {% block content %}
 
 <style>
-/* MAIN CARD */
-.admin-card {
-    background: #fff;
-    padding: 20px;
-    border-radius: 16px;
-    box-shadow: 0 5px 18px rgba(90, 43, 214, 0.15);
-    border-left: 5px solid #5a2bd6;
-    margin-bottom: 20px;
+.page-card { 
+    max-width:1000px; 
+    margin:auto; 
+    background:white; 
+    padding:25px; 
+    border-radius:15px; 
+    box-shadow:0 3px 10px rgba(0,0,0,0.1);
 }
-
-/* TABLE */
-.table-custom {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0 10px;
+.agents-table {
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
 }
-
-.table-custom thead th {
-    background: #5a2bd6;
-    color: white;
-    padding: 12px;
-    border-radius: 8px 8px 0 0;
+.agents-table th, .agents-table td {
+    border:1px solid #ddd;
+    padding:10px;
+    text-align:left;
 }
-
-.table-custom tbody tr {
-    background: white;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
-    border-radius: 10px;
+.agents-table th {
+    background:#6a0dad;
+    color:white;
 }
-
-.table-custom td {
-    padding: 12px;
-    font-size: 15px;
+.btn-primary {
+    background:#6a0dad; 
+    color:white; 
+    padding:6px 12px; 
+    border:none; 
+    border-radius:6px; 
+    cursor:pointer; 
+    font-weight:600;
 }
-
-/* BADGES */
-.badge-active {
-    background: #28a745;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 6px;
+.btn-primary:hover { 
+    background:#501393; 
 }
-
-.badge-blocked {
-    background: #dc3545;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 6px;
+.btn-danger {
+    background:#dc3545; 
+    color:white; 
+    padding:6px 12px; 
+    border:none; 
+    border-radius:6px; 
+    cursor:pointer; 
+    font-weight:600;
 }
-
-/* BUTTONS */
-.toggle-btn {
-    padding: 8px 15px;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
-    cursor: pointer;
-    transition: 0.25s;
+.btn-danger:hover { 
+    background:#a71d2a; 
 }
-
-.toggle-btn:hover {
-    transform: scale(1.05);
+.alert-success {
+    padding:12px;
+    margin-bottom:10px;
+    border-radius:8px;
+    color:white;
+    background:#28a745;
 }
-
-.btn-disable {
-    background: #dc3545 !important;
-    color: white;
-}
-
-.btn-enable {
-    background: #28a745 !important;
-    color: white;
-}
-
-/* MOBILE CARDS */
-.agent-card {
-    display: none;
-}
-
-@media(max-width: 760px){
-    .table-responsive { display: none; }
-
-    .agent-card {
-        display: block;
-        background: #fff;
-        padding: 15px;
-        border-radius: 14px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-    }
-
-    .agent-card p {
-        margin: 4px 0;
-        font-size: 15px;
-    }
+.alert-error {
+    padding:12px;
+    margin-bottom:10px;
+    border-radius:8px;
+    color:white;
+    background:#dc3545;
 }
 </style>
 
-<h2 style="color:#5a1ea1; font-weight:700; margin-bottom:20px;">Manage Agents</h2>
+<div class="page-card">
+    <h2 style="text-align:center;color:#6a0dad;">Agents Management</h2>
 
-<div class="admin-card">
+    <!-- MESSAGE ALERTS -->
+    {% if messages %}
+        {% for msg in messages %}
+            {% if msg.tags == 'success' %}
+                <div class="alert-success">{{ msg }}</div>
+            {% else %}
+                <div class="alert-error">{{ msg }}</div>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
 
-    <!-- DESKTOP TABLE -->
-    <div class="table-responsive">
-        <table class="table-custom">
-            <thead>
-                <tr>
-                    <th>Agent</th>
-                    <th>Email</th>
-                    <th>Username</th>
-                    <th>Wallet</th>
-                    <th>Purchases</th>
-                    <th>Status</th>
-                    <th>Toggle</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {% for row in agent_data %}
-                <tr>
-                    <td>{{ row.agent.full_name }}</td>
-                    <td>{{ row.email }}</td>
-                    <td>{{ row.agent.user.username }}</td>
-                    <td>₵{{ row.wallet }}</td>
-                    <td>{{ row.total_purchases }}</td>
-
-                    <td>
-                        {% if row.agent.is_active %}
-                            <span class="badge-active">Active</span>
-                        {% else %}
-                            <span class="badge-blocked">Blocked</span>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        <a href="{% url 'admin_toggle_agent' row.agent.id %}">
-                            {% if row.agent.is_active %}
-                                <button class="toggle-btn btn-disable">Disable</button>
-                            {% else %}
-                                <button class="toggle-btn btn-enable">Enable</button>
-                            {% endif %}
+    <table class="agents-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Wallet (GHS)</th>
+                <th>Total Sales</th>
+                <th>Sales Volume</th>
+                <th>API Keys</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in agent_data %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ a.user.username }}</td>
+                <td>{{ a.user.email }}</td>
+                <td>{{ a.wallet }}</td>
+                <td>{{ a.sales }}</td>
+                <td>{{ a.volume }}</td>
+                <td>
+                    {% if a.agent %}
+                        PUB: {{ a.agent.public_key|default:"-" }}<br>
+                        SEC: {{ a.agent.secret_key|default:"-" }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if not a.user.is_staff %}
+                        <a href="{% url 'admin_make_staff' a.user.id %}">
+                            <button class="btn-primary">Make Staff</button>
                         </a>
-                    </td>
-                </tr>
-
-                {% empty %}
-                <tr>
-                    <td colspan="7" style="text-align:center; padding:15px;">No agents found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- MOBILE VIEW -->
-    {% for row in agent_data %}
-    <div class="agent-card">
-
-        <p><strong>{{ row.agent.full_name }}</strong></p>
-        <p>Email: {{ row.email }}</p>
-        <p>Username: {{ row.agent.user.username }}</p>
-        <p>Wallet: ₵{{ row.wallet }}</p>
-        <p>Purchases: {{ row.total_purchases }}</p>
-
-        <p>Status:
-            {% if row.agent.is_active %}
-                <span class="badge-active">Active</span>
-            {% else %}
-                <span class="badge-blocked">Blocked</span>
-            {% endif %}
-        </p>
-
-        <a href="{% url 'admin_toggle_agent' row.agent.id %}">
-            {% if row.agent.is_active %}
-                <button class="toggle-btn btn-disable" style="width:100%; margin-top:8px;">Disable</button>
-            {% else %}
-                <button class="toggle-btn btn-enable" style="width:100%; margin-top:8px;">Enable</button>
-            {% endif %}
-        </a>
-
-    </div>
-    {% endfor %}
-
+                    {% else %}
+                        <span style="color:green;font-weight:bold;">Staff</span>
+                    {% endif %}
+                    <a href="{% url 'admin_delete_agent' a.user.id %}" onclick="return confirm('Are you sure?');">
+                        <button class="btn-danger">Delete</button>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="8" style="text-align:center;">No agents found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 {% endblock %}

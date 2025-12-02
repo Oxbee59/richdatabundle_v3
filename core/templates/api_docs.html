@@ -1,25 +1,110 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card" style="max-width:700px;margin:auto;">
-    <h2 style="text-align:center;margin-bottom:15px;">Agent API Documentation</h2>
 
-    <p><strong>Your API Key:</strong> <code>{{ api_key }}</code></p>
-    <p>Use this key to authenticate requests to your endpoints.</p>
+<div class="page-container">
 
-    <h3>Available Endpoints:</h3>
-    <ul>
+    <h2 style="text-align:center;color:#6a0dad;margin-bottom:20px;">Agent API Documentation</h2>
+
+    <!-- API Keys Card -->
+    <div class="card">
+        <h3>Your API Keys</h3>
+        <p id="currentApiKey">
+            {% if api_key %}
+                <strong>Existing API Key:</strong> <code>{{ api_key }}</code>
+            {% else %}
+                <em>You don't have API keys yet.</em>
+            {% endif %}
+        </p>
+
+        <button id="generateKeysBtn" class="btn-primary">Generate API Keys</button>
+        <div id="apiKeyMessage" class="api-message"></div>
+    </div>
+
+    <!-- Endpoints Cards -->
+    <h3 style="margin-top:30px;">Available Endpoints</h3>
+    <div class="endpoints-container">
         {% for endpoint in endpoints %}
-        <li style="margin-bottom:10px;">
-            <strong>{{ endpoint.name }}</strong> <br>
-            <code>{{ base_url }}{{ endpoint.url }}</code> <br>
-            Method: <strong>{{ endpoint.method }}</strong> <br>
-            {{ endpoint.description }}
-        </li>
+        <div class="card endpoint-card">
+            <h4>{{ endpoint.name }}</h4>
+            <p><strong>URL:</strong> <code>{{ base_url }}{{ endpoint.url }}</code></p>
+            <p><strong>Method:</strong> {{ endpoint.method }}</p>
+            <p>{{ endpoint.description }}</p>
+        </div>
         {% endfor %}
-    </ul>
+    </div>
 
-    <p style="font-size:12px;color:#555;">
-        Note: Keep your API key secure. Do not share it publicly.
+    <p style="font-size:12px;color:#555;margin-top:15px;">
+        Note: Keep your API keys secure. Do not share them publicly.
     </p>
+
 </div>
+
+<style>
+.page-container {
+    max-width:900px;
+    margin:auto;
+    padding:20px;
+}
+.card {
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0 3px 12px rgba(0,0,0,0.1);
+    margin-bottom:20px;
+}
+.endpoint-card {
+    margin-bottom:15px;
+}
+.btn-primary {
+    background:#6a0dad;
+    color:white;
+    padding:12px 20px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:600;
+    margin-top:10px;
+}
+.btn-primary:hover {
+    background:#501393;
+    transform:scale(1.02);
+}
+.api-message {
+    margin-top:15px;
+    font-size:14px;
+}
+.api-message p {
+    margin:5px 0;
+}
+</style>
+
+<script>
+document.getElementById("generateKeysBtn").addEventListener("click", () => {
+    const btn = document.getElementById("generateKeysBtn");
+    btn.disabled = true;
+    btn.innerText = "Generating...";
+
+    fetch("{% url 'generate_api_keys' %}")
+        .then(res => res.json())
+        .then(data => {
+            const msgDiv = document.getElementById("apiKeyMessage");
+            if(data.success) {
+                msgDiv.innerHTML = `
+                    <p><strong>Public Key:</strong> <code>${data.public_key}</code></p>
+                    <p><strong>Secret Key:</strong> <code>${data.secret_key}</code></p>
+                `;
+            } else {
+                msgDiv.innerHTML = `<p style="color:red;">${data.message}</p>`;
+            }
+        })
+        .catch(err => {
+            document.getElementById("apiKeyMessage").innerHTML = `<p style="color:red;">Error generating keys.</p>`;
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerText = "Generate API Keys";
+        });
+});
+</script>
+
 {% endblock %}

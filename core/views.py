@@ -19,6 +19,8 @@ from django.core.mail import send_mail
 from core.models import UserProfile
 import uuid
 from .paystack_utils import paystack_initialize
+import secrets
+from .models import UserProfile, WalletTransaction
 
 
 from django.contrib.auth.models import User
@@ -123,27 +125,76 @@ def purchases(request):
     user_purchases = Purchase.objects.filter(user=request.user).order_by("-created_at")
     return render(request, "purchases.html", {"purchases": user_purchases})
 
-
-# -------------------
-# API Docs (for agents who want to integrate)
-# -------------------
+# ---------------------------
+# API DOCS VIEW
+# ---------------------------
 @login_required
 def api_docs(request):
-    if not request.user.userprofile.is_agent:
-        return render(request, "not_authorized.html", {"message": "You must be an agent to access the API."})
+    profile = request.user.userprofile
+    agent = profile.agent_profile
 
-    # pulled from your Smartdatalink documentation
-    context = {
-        "api_key": request.user.userprofile.agent_profile.api_key if hasattr(request.user, 'userprofile') and request.user.userprofile.agent_profile else None,
-        "base_url": settings.SMART_BASE_URL if hasattr(settings, "SMART_BASE_URL") else "https://blessdatahub.com/api/",
+    if not profile.is_agent:
+        return render(request, "not_authorized.html", {"message": "Only agents can access API docs."})
+
+    if not agent:
+        return render(request, "not_authorized.html", {"message": "Your agent profile is missing."})
+
+    if not agent.has_paid:
+        return render(request, "api_docs_locked.html", {
+            "message": "You must pay the agent registration fee before generating API keys."
+        })
+
+    return render(request, "api_docs.html", {
+        "public_key": agent.public_key,
+        "secret_key": agent.secret_key,
+        "base_url": "https://richdatabundle-v3.onrender.com/api/",
         "endpoints": [
-            {"name": "Create Order", "url": "/api/create_order.php", "method": "POST", "description": "Create a single order"},
-            {"name": "Bulk Orders", "url": "/api/create_order.php", "method": "POST", "description": "Send multiple orders in one request"},
-            {"name": "Check Order Status", "url": "/api/check_order_status.php", "method": "GET", "description": "Check order status by order_id"},
+            {
+                "name": "Buy Data",
+                "url": "/v1/data/purchase/",
+                "method": "POST",
+                "description": "Purchase a single data bundle."
+            },
+            {
+                "name": "Check Balance",
+                "url": "/v1/wallet/balance/",
+                "method": "GET",
+                "description": "Get wallet balance using Secret Key."
+            },
+            {
+                "name": "Verify Transaction",
+                "url": "/v1/transactions/verify/",
+                "method": "GET",
+                "description": "Verify any purchase or wallet funding."
+            },
         ]
-    }
-    return render(request, "api_docs.html", context)
+    })
 
+
+# ---------------------------
+# GENERATE KEYS (NO PAGE)
+# ---------------------------
+@login_required
+def generate_api_keys(request):
+    profile = request.user.userprofile
+    agent = profile.agent_profile
+
+    if not profile.is_agent:
+        return JsonResponse({"success": False, "message": "Not an agent."})
+
+    if not agent:
+        return JsonResponse({"success": False, "message": "Agent profile missing."})
+
+    if not agent.has_paid:
+        return JsonResponse({"success": False, "message": "You must pay the registration fee."})
+
+    agent.generate_keys()
+
+    return JsonResponse({
+        "success": True,
+        "public_key": agent.public_key,
+        "secret_key": agent.secret_key
+    })
 
 # -------------------
 # Become agent (pay registration fee from wallet)
@@ -469,7 +520,7 @@ def sell_bundle(request):
 @login_required
 def contact_admin(request):
     admin_email = "richmondobeng2004@gmail.com"
-    admin_whatsapp = "+233 55 637 3440"
+    admin_whatsapp = "+233537204692"  # updated number in international format
 
     if request.method == "POST":
         subject = request.POST.get("subject")
@@ -525,19 +576,20 @@ def admin_dashboard(request):
         "contact_messages": contact_messages,
         "active_fee": active_fee,
     })
-# --------------------------------------------------------------------
-# FUND AGENT WALLET — REAL PAYSTACK TRANSFER + SEARCH SUPPORT
-# --------------------------------------------------------------------
+# ---------------------------
+# FUND AGENT WALLET
+# ---------------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_update_agent_wallet(request):
-    agent = None
+    agent_data = None
 
-    # SEARCH
-    if request.GET.get("search_email"):
-        email = request.GET.get("search_email")
+    # SEARCH AGENT BY EMAIL
+    email = request.GET.get("search_email")
+    if email:
         try:
-            agent = User.objects.get(email=email, userprofile__is_agent=True)
-        except User.DoesNotExist:
+            profile = UserProfile.objects.get(user__email=email, is_agent=True)
+            agent_data = profile
+        except UserProfile.DoesNotExist:
             messages.error(request, "No agent found with that email.")
 
     # FUND WALLET
@@ -551,34 +603,25 @@ def admin_update_agent_wallet(request):
             return redirect("admin_update_agent_wallet")
 
         try:
-            agent = User.objects.get(email=email, userprofile__is_agent=True)
-        except User.DoesNotExist:
+            profile = UserProfile.objects.get(user__email=email, is_agent=True)
+        except UserProfile.DoesNotExist:
             messages.error(request, "Agent not found.")
             return redirect("admin_update_agent_wallet")
 
-        profile = agent.userprofile
-
-        # PAYSTACK TRANSFER
+        # PAYSTACK TRANSFER FROM ADMIN BALANCE
         headers = {
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
             "Content-Type": "application/json"
         }
-
         payload = {
             "source": "balance",
             "reason": reason,
-            "amount": int(amount * 100),  # pesewas
+            "amount": int(amount * 100),  # convert to pesewas
             "recipient": settings.AGENT_PAYSTACK_RECIPIENT,
             "currency": "GHS"
         }
-
         try:
-            r = requests.post(
-                "https://api.paystack.co/transfer",
-                json=payload,
-                headers=headers,
-                timeout=10
-            )
+            r = requests.post("https://api.paystack.co/transfer", json=payload, headers=headers, timeout=10)
             res = r.json()
             if not res.get("status"):
                 messages.error(request, f"Paystack Error: {res.get('message')}")
@@ -587,12 +630,12 @@ def admin_update_agent_wallet(request):
             messages.error(request, f"Paystack API error: {str(e)}")
             return redirect("admin_update_agent_wallet")
 
-        # CREDIT WALLET LOCALLY
+        # Update Wallet Locally
         profile.wallet += amount
         profile.save()
 
         WalletTransaction.objects.create(
-            user=agent,
+            user=profile.user,
             transaction_type="FUND",
             amount=amount,
             reason=reason,
@@ -600,30 +643,30 @@ def admin_update_agent_wallet(request):
             success=True
         )
 
-        send_wallet_alert(agent, amount, "CREDIT")
+        send_wallet_alert(profile.user, amount, "CREDIT")
+        messages.success(request, f"Successfully funded GHS {amount} to {profile.user.email}")
+        return redirect(f"{reverse('admin_update_agent_wallet')}?search_email={email}")
 
-        messages.success(request, f"Successfully funded GHS {amount} to {agent.email}")
-        return redirect("admin_update_agent_wallet")
-
-    return render(request, "admin_update_agent_wallet.html", {"agent": agent})
+    return render(request, "admin_update_agent_wallet.html", {"agent_data": agent_data})
 
 
-# --------------------------------------------------------------------
-# DEDUCT AGENT WALLET — REAL PAYSTACK TRANSFER + SEARCH SUPPORT
-# --------------------------------------------------------------------
+# ---------------------------
+# DEDUCT AGENT WALLET
+# ---------------------------
 @staff_member_required(login_url='/admin/login/')
 def admin_deduct_agent_wallet(request):
-    agent = None
+    agent_data = None
 
-    # SEARCH
-    if request.GET.get("search_email"):
-        email = request.GET.get("search_email")
+    # SEARCH AGENT BY EMAIL
+    email = request.GET.get("search_email")
+    if email:
         try:
-            agent = User.objects.get(email=email, userprofile__is_agent=True)
-        except User.DoesNotExist:
+            profile = UserProfile.objects.get(user__email=email, is_agent=True)
+            agent_data = profile
+        except UserProfile.DoesNotExist:
             messages.error(request, "No agent found with that email.")
 
-    # DEDUCTION
+    # DEDUCT WALLET
     if request.method == "POST":
         email = request.POST.get("email")
         amount = Decimal(request.POST.get("amount", "0"))
@@ -634,15 +677,15 @@ def admin_deduct_agent_wallet(request):
             return redirect("admin_deduct_agent_wallet")
 
         try:
-            agent = User.objects.get(email=email, userprofile__is_agent=True)
-        except User.DoesNotExist:
+            profile = UserProfile.objects.get(user__email=email, is_agent=True)
+        except UserProfile.DoesNotExist:
             messages.error(request, "Agent not found.")
             return redirect("admin_deduct_agent_wallet")
 
+        # Create transaction locally first
         reference = f"ADM_DED_{uuid.uuid4().hex[:12].upper()}"
-
         tx = WalletTransaction.objects.create(
-            user=agent,
+            user=profile.user,
             transaction_type="DEDUCT",
             amount=amount,
             reason=reason,
@@ -651,61 +694,53 @@ def admin_deduct_agent_wallet(request):
             success=False
         )
 
+        # Initialize Paystack transfer
         callback_url = request.build_absolute_uri(reverse("paystack_deduct_callback"))
-
-        response = paystack_initialize(
-            email=agent.email,
-            amount=amount,
-            reference=reference,
-            callback_url=callback_url
-        )
-
-        if not response.get("status"):
-            messages.error(request, "Failed to initialize Paystack payment.")
+        payload = {
+            "amount": int(amount * 100),
+            "recipient": settings.AGENT_PAYSTACK_RECIPIENT,
+            "reason": reason,
+            "source": "balance"
+        }
+        headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
+        try:
+            r = requests.post("https://api.paystack.co/transfer", json=payload, headers=headers, timeout=10)
+            res = r.json()
+            if not res.get("status"):
+                messages.error(request, f"Paystack Error: {res.get('message')}")
+                return redirect("admin_deduct_agent_wallet")
+        except Exception as e:
+            messages.error(request, f"Paystack API error: {str(e)}")
             return redirect("admin_deduct_agent_wallet")
 
-        return redirect(response["data"]["authorization_url"])
-
-    return render(request, "admin_deduct_agent_wallet.html", {"agent": agent})
-
-
-def paystack_deduct_callback(request):
-    reference = request.GET.get("reference")
-    tx = get_object_or_404(WalletTransaction, reference=reference)
-
-    url = f"https://api.paystack.co/transaction/verify/{reference}"
-    headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
-    verify = requests.get(url, headers=headers).json()
-
-    if verify["data"]["status"] == "success":
-        profile = tx.user.userprofile
-        profile.wallet -= tx.amount
+        # Deduct locally
+        profile.wallet -= amount
         profile.save()
-
         tx.success = True
         tx.save()
-        send_wallet_alert(tx.user, tx.amount, "DEBIT")
+        send_wallet_alert(profile.user, amount, "DEBIT")
+        messages.success(request, f"Successfully deducted GHS {amount} from {profile.user.email}")
+        return redirect(f"{reverse('admin_deduct_agent_wallet')}?search_email={email}")
 
-        messages.success(request, f"Deduction successful for {tx.user.email}")
-        return redirect("admin_deduct_agent_wallet")
-
-    tx.success = False
-    tx.save()
-    messages.error(request, "Payment failed. No deduction made.")
-    return redirect("admin_deduct_agent_wallet")
+    return render(request, "admin_deduct_agent_wallet.html", {"agent_data": agent_data})
 
 
-# AGENT AUTOCOMPLETE
+
+# ---------------------------
+# AGENT AUTOCOMPLETE API
+# ---------------------------
 @staff_member_required(login_url='/admin/login/')
 def agent_autocomplete(request):
     q = request.GET.get("q", "").strip()
-    if q == "":
+    if not q:
         return JsonResponse({"results": []})
 
     users = User.objects.filter(userprofile__is_agent=True, email__icontains=q)[:10]
     results = [{"email": u.email, "username": u.username, "id": u.id} for u in users]
     return JsonResponse({"results": results})
 
+
+# ----------------
 
 # LIVE WALLET BALANCE
 @login_required
@@ -714,15 +749,16 @@ def live_wallet_balance(request, user_id):
     return JsonResponse({"wallet": float(profile.wallet)})
 
 
-# SEND WALLET ALERT
+# ---------------------------
+# SEND WALLET ALERT (EMAIL)
+# ---------------------------
 def send_wallet_alert(user, amount, tx_type):
-    subject = f"Wallet {'Credit' if tx_type=='CREDIT' else 'Deduction'} Alert"
+    subject = f"Wallet {'Credit' if tx_type=='CREDIT' else 'Debit'} Alert"
     message = (
         f"Hello {user.username},\n\n"
         f"Your wallet was {'credited' if tx_type=='CREDIT' else 'debited'} "
         f"₵{amount}.\n\nYour new balance is: ₵{user.userprofile.wallet}\n"
     )
-
     send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=True)
     # SMS stub: send_sms(user.phone, message)
 
@@ -755,48 +791,58 @@ def admin_wallet_transactions(request):
 # ----------------------------------
 # 2. VIEW & MANAGE AGENTS
 # ----------------------------------
-# ADMIN AGENTS LIST
+
+# ---------------------------
+# Admin Agents List
+# ---------------------------
 @staff_member_required(login_url="/admin/login/")
 def admin_agents(request):
-    agents = AgentProfile.objects.select_related("user")
+    agents = UserProfile.objects.filter(is_agent=True).select_related("user", "agent_profile")
     agent_data = []
 
-    for ag in agents:
-        profile = getattr(ag.user, "userprofile", None)
-        wallet = getattr(profile, "wallet", 0)
-        total_purchases = Purchase.objects.filter(user=ag.user).count()
-        email = ag.user.email
-
+    for p in agents:
+        ag = p.agent_profile
         agent_data.append({
+            "user": p.user,
+            "profile": p,
             "agent": ag,
-            "wallet": wallet,
-            "total_purchases": total_purchases,
-            "email": email,
+            "wallet": p.wallet,
+            "sales": ag.total_sales if ag else 0,
+            "volume": ag.total_sales_volume if ag else 0
         })
 
     return render(request, "admin_agents.html", {"agent_data": agent_data})
 
-
+# ---------------------------
+# Promote Agent to Staff/Admin
+# ---------------------------
 @staff_member_required(login_url="/admin/login/")
-def admin_toggle_agent(request, agent_id):
-    agent = get_object_or_404(AgentProfile, id=agent_id)
+def admin_make_staff(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    user.is_staff = True
+    user.save()
+    messages.success(request, f"{user.username} is now a Staff/Admin.")
+    return redirect("admin_agents")
 
-    # Toggle active status
-    agent.is_active = not agent.is_active
-    agent.save()
+# ---------------------------
+# Delete Agent
+# ---------------------------
+@staff_member_required(login_url="/admin/login/")
+def admin_delete_agent(request, user_id):
+    user = get_object_or_404(User, id=user_id)
 
-    # Optional: auto-create wallet if enabling agent without one
-    profile = getattr(agent.user, "userprofile", None)
-    if agent.is_active and profile and profile.wallet is None:
-        profile.wallet = 0
-        profile.save()
+    # Remove agent profile if exists
+    if hasattr(user, "userprofile"):
+        if user.userprofile.agent_profile:
+            user.userprofile.agent_profile.delete()
+        user.userprofile.is_agent = False
+        user.userprofile.agent_profile = None
+        user.userprofile.save()
 
-    messages.success(request,
-        f"Agent {agent.user.username} has been "
-        f"{'enabled' if agent.is_active else 'disabled'} and "
-        f"{'can sell bundles' if agent.is_active else 'cannot sell bundles'}."
-    )
+    user.is_staff = False
+    user.save()
 
+    messages.success(request, "Agent deleted successfully.")
     return redirect("admin_agents")
 
 # ----------------------------------
@@ -916,12 +962,13 @@ def admin_set_registration_fee(request):
 
     if request.method == "POST":
         fee = Decimal(request.POST.get("fee", 0))
-        settings_obj.registration_fee = fee
+        settings_obj.agent_registration_fee = fee
         settings_obj.save()
 
         messages.success(request, "Registration fee updated!")
         return redirect("admin_set_registration_fee")
 
+    # NOW updated_at exists, so ordering works
     fee_history = AppSettings.objects.order_by("-updated_at")[:20]
 
     return render(request, "admin_set_registration_fee.html", {
