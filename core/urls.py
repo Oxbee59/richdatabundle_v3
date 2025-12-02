@@ -16,8 +16,9 @@ urlpatterns = [
     path("purchases/", views.purchases, name="purchases"),
     path("profile/", views.profile, name="profile"),
     
-    path("agent/api-docs/", views.api_docs, name="api_docs"),
-    path("agent/api-docs/generate-keys/", views.generate_api_keys, name="generate_api_keys"),
+    path("api-docs/", views.api_docs, name="api_docs"),
+    path("api-docs/generate-keys/", views.generate_api_keys, name="generate_api_keys"),
+
     path("load-wallet/", views.load_wallet, name="load_wallet"),
     path("wallet/callback/", views.wallet_callback, name="wallet_callback"),
     path("paystack/webhook/", views.paystack_webhook, name="paystack_webhook"),
@@ -33,17 +34,14 @@ urlpatterns = [
     path("superadmin/deduct-wallet/", views.admin_deduct_agent_wallet, name="admin_deduct_agent_wallet"),
 
     # Cards / Admin Views
-    
     path("superadmin/wallets/", views.admin_wallets, name="admin_wallets"),
     path("superadmin/orders-today/", views.admin_orders, name="admin_orders"),
 
     # Admin Agents
-   path('superadmin/agents/', views.admin_agents, name='admin_agents'),
-   path('superadmin/agents/make-staff/<int:user_id>/', views.admin_make_staff, name='admin_make_staff'),
-   path('superadmin/agents/delete/<int:user_id>/', views.admin_delete_agent, name='admin_delete_agent'),
+    path('superadmin/agents/', views.admin_agents, name='admin_agents'),
+    path('superadmin/agents/make-staff/<int:user_id>/', views.admin_make_staff, name='admin_make_staff'),
+    path('superadmin/agents/delete/<int:user_id>/', views.admin_delete_agent, name='admin_delete_agent'),
 
-
-    
     # Bundle Editing & Deleting
     path("superadmin/bundles/edit/<int:bundle_id>/", views.admin_edit_bundle, name="admin_edit_bundle"),
     path("superadmin/bundles/delete/<int:bundle_id>/", views.admin_delete_bundle, name="admin_delete_bundle"),
