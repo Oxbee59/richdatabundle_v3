@@ -13,7 +13,8 @@
         </p>
     </div>
 
-    <a href="/dashboard/" class="btn-primary" style="display:inline-block; padding:12px 20px; border-radius:8px; text-decoration:none; color:white;">
+    <a href="{% url 'agent_dashboard' %}" class="btn-primary" 
+       style="display:inline-block; padding:12px 20px; border-radius:8px; text-decoration:none; color:white;">
         Go to Dashboard
     </a>
 </div>
@@ -33,7 +34,10 @@
     text-decoration:none;
     transition:0.3s;
 }
-.btn-primary:hover { background:#501393; transform:scale(1.02); }
+.btn-primary:hover { 
+    background:#501393; 
+    transform:scale(1.02); 
+}
 
 @media(max-width:600px){
     .page-card { width:95%; padding:15px; }

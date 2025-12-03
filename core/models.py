@@ -156,8 +156,8 @@ class AppSettings(models.Model):
     PAYSTACK_WEBHOOK_SECRET = models.CharField(max_length=200, blank=True)
 
     # Data API
-    DATA_API_KEY = models.CharField(max_length=200, blank=True)
-    DATA_API_BASE_URL = models.CharField(max_length=300, blank=True)
+    SMART_API_KEY = models.CharField(max_length=200, blank=True)
+    SMART_BASE_URL = models.CharField(max_length=300, blank=True)
 
     # NEW FIELDS FOR HISTORY
     created_at = models.DateTimeField(auto_now_add=True)
