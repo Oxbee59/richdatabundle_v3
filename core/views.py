@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
-from django.utils.timezone import now, timezone
+from django.utils import timezone 
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.core.mail import send_mail
@@ -21,6 +21,8 @@ import uuid
 from .paystack_utils import paystack_initialize
 import secrets
 from .models import UserProfile, WalletTransaction
+from django.db import transaction
+from django.utils.timezone import now
 
 
 from django.contrib.auth.models import User
@@ -126,54 +128,132 @@ def purchases(request):
     return render(request, "purchases.html", {"purchases": user_purchases})
 
 # ---------------------------
-# API DOCS VIEW
+# API DOCS VIEW (MAIN PAGE)
 # ---------------------------
 @login_required
 def api_docs(request):
     profile = request.user.userprofile
     agent = profile.agent_profile
 
+    # Only agents can view API docs
     if not profile.is_agent:
-        return render(request, "not_authorized.html", {"message": "Only agents can access API docs."})
-
-    if not agent:
-        return render(request, "not_authorized.html", {"message": "Your agent profile is missing."})
-
-    if not agent.has_paid:
-        return render(request, "api_docs_locked.html", {
-            "message": "You must pay the agent registration fee before generating API keys."
+        return render(request, "not_authorized.html", {
+            "message": "Only agents can access API documentation."
         })
 
+    # Agent profile must exist
+    if not agent:
+        return render(request, "not_authorized.html", {
+            "message": "Your agent profile is missing."
+        })
+
+    # Must pay before seeing/generating API keys
+    if not agent.has_paid:
+        return render(request, "api_docs_locked.html", {
+            "message": "You must pay the agent registration fee before accessing API keys."
+        })
+
+    # MAIN API DOC CONTENT
     return render(request, "api_docs.html", {
         "public_key": agent.public_key,
         "secret_key": agent.secret_key,
         "base_url": "https://richdatabundle-v3.onrender.com/api/",
-        "endpoints": [
+
+        # ---- DOCUMENTATION CARDS (REAL ENDPOINTS) ----
+        "api_sections": [
+
+            # ------------------
+            # AUTHENTICATION
+            # ------------------
             {
-                "name": "Buy Data",
-                "url": "/v1/data/purchase/",
-                "method": "POST",
-                "description": "Purchase a single data bundle."
+                "title": "Authentication",
+                "description": "Authenticate using your Secret Key in the header.",
+                "endpoints": [
+                    {
+                        "name": "Header Authentication",
+                        "url": "ALL REQUESTS",
+                        "method": "Header",
+                        "description": "Send Secret Key as: Authorization: Bearer YOUR_SECRET_KEY",
+                        "sample": {
+                            "curl": "curl -H \"Authorization: Bearer SECRET_KEY\" https://richdatabundle-v3.onrender.com/api/v1/wallet/balance/"
+                        }
+                    }
+                ]
             },
+
+            # ------------------
+            # DATA PURCHASE
+            # ------------------
             {
-                "name": "Check Balance",
-                "url": "/v1/wallet/balance/",
-                "method": "GET",
-                "description": "Get wallet balance using Secret Key."
+                "title": "Data Purchase",
+                "description": "Buy mobile data bundles for MTN, Airtel, Glo, 9mobile.",
+                "endpoints": [
+                    {
+                        "name": "Buy Data",
+                        "url": "v1/data/purchase/",
+                        "method": "POST",
+                        "description": "Purchase a single data bundle.",
+                        "sample": {
+                            "json": {
+                                "network": "mtn",
+                                "plan_id": "mtn-1gb-500",
+                                "phone": "08012345678",
+                                "reference": "unique-ref-001"
+                            }
+                        }
+                    }
+                ]
             },
+
+            # ------------------
+            # WALLET
+            # ------------------
             {
-                "name": "Verify Transaction",
-                "url": "/v1/transactions/verify/",
-                "method": "GET",
-                "description": "Verify any purchase or wallet funding."
+                "title": "Wallet",
+                "description": "View wallet details and available balance.",
+                "endpoints": [
+                    {
+                        "name": "Check Wallet Balance",
+                        "url": "v1/wallet/balance/",
+                        "method": "GET",
+                        "description": "Returns real-time wallet balance.",
+                        "sample": {
+                            "json_response": {
+                                "success": True,
+                                "balance": 3500.00
+                            }
+                        }
+                    }
+                ]
             },
+
+            # ------------------
+            # TRANSACTIONS
+            # ------------------
+            {
+                "title": "Transactions",
+                "description": "Verify and track purchases/wallet funding.",
+                "endpoints": [
+                    {
+                        "name": "Verify Transaction",
+                        "url": "v1/transactions/verify/",
+                        "method": "GET",
+                        "description": "Verify data purchase or wallet funding.",
+                        "query_params": "?reference=your_ref",
+                        "sample": {
+                            "json_response": {
+                                "status": "success",
+                                "message": "Transaction verified",
+                                "details": {}
+                            }
+                        }
+                    }
+                ]
+            },
+
         ]
     })
 
-
-# ---------------------------
-# GENERATE KEYS (NO PAGE)
-# ---------------------------
 @login_required
 def generate_api_keys(request):
     profile = request.user.userprofile
@@ -188,6 +268,7 @@ def generate_api_keys(request):
     if not agent.has_paid:
         return JsonResponse({"success": False, "message": "You must pay the registration fee."})
 
+    # generate new keys
     agent.generate_keys()
 
     return JsonResponse({
@@ -196,6 +277,8 @@ def generate_api_keys(request):
         "secret_key": agent.secret_key
     })
 
+
+#
 # -------------------
 # Become agent (pay registration fee from wallet)
 # -------------------
@@ -335,15 +418,14 @@ def paystack_webhook(request):
 
 
 # -------------------
-# BUY BUNDLE (users buy bundles from admin bundles -> Smartdatalink order)
-# changes: no quantity (single), recipient phone required
+# BUY BUNDLE (Final Version)
 # -------------------
 @login_required
+@transaction.atomic
 def buy_bundle(request):
     profile = request.user.userprofile
     wallet_balance = profile.wallet
 
-    # Admin bundles only (admin sets bundles)
     bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
     bundles = [{
         "id": b.id,
@@ -356,88 +438,100 @@ def buy_bundle(request):
 
     if request.method == "POST":
         bundle_id = request.POST.get("bundle_id")
-        recipient = request.POST.get("recipient")  # phone number
+        recipient = request.POST.get("recipient")
+
         if not bundle_id or not recipient:
-            messages.error(request, "Select a bundle and provide recipient phone number.")
+            messages.error(request, "Select a bundle and enter recipient phone.")
             return redirect("buy_bundle")
 
-        # find bundle
-        try:
-            b = Bundle.objects.get(pk=int(bundle_id))
-        except Exception:
-            messages.error(request, "Selected bundle not found.")
-            return redirect("buy_bundle")
-
+        b = get_object_or_404(Bundle, pk=int(bundle_id))
         price = Decimal(str(b.price))
-        # Check wallet
+
+        # Check wallet before anything
         if profile.wallet < price:
             messages.error(request, "Insufficient wallet balance.")
             return redirect("buy_bundle")
 
-        # If bundle must be delivered via external Smartdatalink we call their API
-        api_result = None
+        # ---------------------------
+        # CALL SMARTDATALINK API
+        # ---------------------------
+        api_cost = price
         order_success = False
-        api_total_cost = None
-        if getattr(settings, "SMART_BASE_URL", None) and b.send_via_api:
-            # call Smartdatalink create order
-            smart_url = settings.SMART_BASE_URL.rstrip("/") + "/create_order.php"
+        api_result = None
+
+        if b.send_via_api and getattr(settings, "SMART_BASE_URL", None):
+
+            smart_url = f"{settings.SMART_BASE_URL.rstrip('/')}/create_order.php"
             payload = {
                 "api_key": settings.SMART_API_KEY,
                 "api_secret": settings.SMART_API_SECRET,
                 "beneficiary": recipient,
-                "package_size": b.code or b.name  # prefer code if it's package_size
+                "package_size": b.code or b.name
             }
+
             try:
-                r = requests.post(smart_url, json=payload, headers={"Authorization": f"Bearer {settings.SMART_API_KEY}", "Content-Type": "application/json"}, timeout=20)
+                r = requests.post(
+                    smart_url, 
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {settings.SMART_API_KEY}",
+                        "Content-Type": "application/json"
+                    },
+                    timeout=20
+                )
                 api_result = r.json()
                 if api_result.get("status") == "success":
+                    api_cost = Decimal(str(api_result.get("total_cost", price)))
                     order_success = True
-                    api_total_cost = Decimal(str(api_result.get("total_cost", price)))
                 else:
                     order_success = False
-            except Exception as e:
+
+            except Exception:
                 order_success = False
 
             if not order_success:
-                messages.error(request, f"Failed to process order with data provider. Try again later.")
+                messages.error(request, "Provider failed to deliver bundle. Try again.")
                 return redirect("buy_bundle")
 
-        # Deduct from buyer wallet
-        profile.wallet -= (api_total_cost if api_total_cost is not None else price)
+        # ---------------------------
+        # ONLY AFTER SUCCESS → DEDUCT WALLET
+        # ---------------------------
+        profile.wallet -= api_cost
         profile.save()
 
-        # Save purchase record
+        # ---------------------------
+        # SAVE PURCHASE
+        # ---------------------------
         Purchase.objects.create(
             user=request.user,
             bundle=b,
             bundle_name=b.name,
             network=b.network,
             quantity=1,
-            amount=(api_total_cost if api_total_cost is not None else price),
+            amount=api_cost,
             recipient=recipient,
             status="PAID",
             created_at=timezone.now()
         )
 
-        messages.success(request, f"Order placed for {b.name} to {recipient}.")
+        messages.success(request, f"{b.name} successfully sent to {recipient}.")
         return redirect("purchases")
 
-    # GET view
     return render(request, "buy_bundle.html", {
         "wallet": wallet_balance,
         "bundles": bundles
     })
 
-
 # -------------------
-# SELL BUNDLE (agent-only). Agents can sell bundles to customer numbers.
-# When sold, we create Purchase (order) and optional Sale record.
+# SELL BUNDLE (Final Version)
 # -------------------
 @login_required
+@transaction.atomic
 def sell_bundle(request):
     profile = request.user.userprofile
+
     if not profile.is_agent:
-        messages.error(request, "You need to become an agent first.")
+        messages.error(request, "You must be an agent to sell bundles.")
         return redirect("agent_dashboard")
 
     bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
@@ -452,30 +546,44 @@ def sell_bundle(request):
 
     if request.method == "POST":
         bundle_id = request.POST.get("bundle_id")
-        customer_phone = request.POST.get("customer_phone")
-        if not bundle_id or not customer_phone:
-            messages.error(request, "Select a bundle and provide customer phone number.")
+        phone = request.POST.get("customer_phone")
+
+        if not bundle_id or not phone:
+            messages.error(request, "Select a bundle and enter customer phone.")
             return redirect("sell_bundle")
 
         b = get_object_or_404(Bundle, pk=int(bundle_id))
         price = Decimal(str(b.price))
 
-        # Agents sell: we create order via API if needed
+        # ---------------------------
+        # CALL SMARTDATALINK API
+        # ---------------------------
+        api_cost = price
         order_success = True
-        api_total_cost = None
-        if getattr(settings, "SMART_BASE_URL", None) and b.send_via_api:
-            smart_url = settings.SMART_BASE_URL.rstrip("/") + "/create_order.php"
+
+        if b.send_via_api and getattr(settings, "SMART_BASE_URL", None):
+
+            smart_url = f"{settings.SMART_BASE_URL.rstrip('/')}/create_order.php"
             payload = {
                 "api_key": settings.SMART_API_KEY,
                 "api_secret": settings.SMART_API_SECRET,
-                "beneficiary": customer_phone,
+                "beneficiary": phone,
                 "package_size": b.code or b.name
             }
+
             try:
-                r = requests.post(smart_url, json=payload, headers={"Authorization": f"Bearer {settings.SMART_API_KEY}", "Content-Type": "application/json"}, timeout=20)
+                r = requests.post(
+                    smart_url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {settings.SMART_API_KEY}",
+                        "Content-Type": "application/json"
+                    },
+                    timeout=20
+                )
                 api_result = r.json()
                 if api_result.get("status") == "success":
-                    api_total_cost = Decimal(str(api_result.get("total_cost", price)))
+                    api_cost = Decimal(str(api_result.get("total_cost", price)))
                     order_success = True
                 else:
                     order_success = False
@@ -483,32 +591,35 @@ def sell_bundle(request):
                 order_success = False
 
             if not order_success:
-                messages.error(request, "Failed to process API order. Try again.")
+                messages.error(request, "API provider failed. Try again.")
                 return redirect("sell_bundle")
 
-        # Create purchase record (agent performed a sale)
-        purchase_amount = api_total_cost if api_total_cost is not None else price
+        # ---------------------------
+        # SAVE PURCHASE RECORD
+        # ---------------------------
         Purchase.objects.create(
             user=request.user,
             bundle=b,
             bundle_name=b.name,
             network=b.network,
             quantity=1,
-            amount=purchase_amount,
-            recipient=customer_phone,
+            amount=api_cost,
+            recipient=phone,
             status="PAID",
             created_at=timezone.now()
         )
 
-        # create Sale record too for agent analytics
+        # ---------------------------
+        # SAVE AGENT SALE RECORD
+        # ---------------------------
         Sale.objects.create(
             agent=request.user,
             bundle=b,
-            price=purchase_amount,
+            price=api_cost,
             quantity=1
         )
 
-        messages.success(request, f"Sold {b.name} to {customer_phone}.")
+        messages.success(request, f"Successfully sold {b.name} to {phone}.")
         return redirect("agent_dashboard")
 
     return render(request, "sell_bundle.html", {"bundles": bundles})

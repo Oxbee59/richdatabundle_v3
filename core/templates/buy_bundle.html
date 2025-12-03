@@ -32,7 +32,7 @@
             {% for b in bundles %}
                 <option value="{{ b.id }}">
                     {{ b.network }} • {{ b.name }} — GHS {{ b.price }}
-                    {% if b.is_api %}(API){% else %}(Admin){% endif %}
+                    {% if b.send_via_api %}(API){% else %}(Admin){% endif %}
                 </option>
             {% endfor %}
         </select>

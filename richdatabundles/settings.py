@@ -96,6 +96,6 @@ PAYSTACK_WEBHOOK_SECRET = os.getenv("PAYSTACK_WEBHOOK_SECRET")
 ADMIN_PAYSTACK_ACCOUNT = os.getenv("ADMIN_PAYSTACK_ACCOUNT")
 
 # External Data API
-DATA_API_KEY = os.getenv("DATA_API_KEY")
-DATA_API_USER_ID = os.getenv("DATA_API_USER_ID")
-DATA_API_BASE_URL = os.getenv("DATA_API_BASE_URL", "https://your-data-api-url.com/")
+SMART_BASE_URL = os.getenv("SMART_BASE_URL", "https://your-data-api-url.com/")
+SMART_API_KEY = os.getenv("SMART_API_KEY")
+SMART_API_SECRET = os.getenv("SMART_API_SECRET")

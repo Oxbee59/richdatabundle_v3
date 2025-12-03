@@ -5,19 +5,49 @@
     <title>Sign Up - RichData.com</title>
 
     <style>
-        body { background:#f3f3f3; margin:0; font-family:Poppins, sans-serif; }
+        body { 
+            background:#f3f3f3; 
+            margin:0; 
+            font-family:Poppins, sans-serif; 
+        }
         .container {
             max-width: 400px;
-            width: 90%;
+            width: 95%;
             margin: 50px auto;
             background: white;
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 3px 15px rgba(0,0,0,0.1);
         }
-        h2 { text-align:center; color:#6a0dad; }
-        input { width:100%; padding:12px; border:1px solid #ccc; border-radius:6px; margin-bottom:12px; }
-        .btn { width:100%; padding:12px; background:#6a0dad; color:white; font-weight:bold; border:none; border-radius:8px; }
+        h2 { 
+            text-align:center; 
+            color:#6a0dad; 
+            margin-bottom:10px;
+        }
+        input { 
+            width:100%; 
+            padding:12px; 
+            border:1px solid #ccc; 
+            border-radius:6px; 
+            margin-bottom:12px;
+            box-sizing: border-box;
+        }
+        .btn { 
+            width:100%; 
+            padding:12px; 
+            background:#6a0dad; 
+            color:white; 
+            font-weight:bold; 
+            border:none; 
+            border-radius:8px; 
+            cursor:pointer;
+            transition:0.3s;
+        }
+        .btn:hover { background:#501393; }
+        @media(max-width:480px){
+            .container { padding:20px; margin:30px auto; }
+            input, .btn { padding:10px; font-size:14px; }
+        }
     </style>
 </head>
 

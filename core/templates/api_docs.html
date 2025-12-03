@@ -1,109 +1,173 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="page-container">
-
-    <h2 style="text-align:center;color:#6a0dad;margin-bottom:20px;">Agent API Documentation</h2>
-
-    <!-- API Keys Card -->
-    <div class="card">
-        <h3>Your API Keys</h3>
-        <p id="currentApiKey">
-            {% if api_key %}
-                <strong>Existing API Key:</strong> <code>{{ api_key }}</code>
-            {% else %}
-                <em>You don't have API keys yet.</em>
-            {% endif %}
-        </p>
-
-        <button id="generateKeysBtn" class="btn-primary">Generate API Keys</button>
-        <div id="apiKeyMessage" class="api-message"></div>
-    </div>
-
-    <!-- Endpoints Cards -->
-    <h3 style="margin-top:30px;">Available Endpoints</h3>
-    <div class="endpoints-container">
-        {% for endpoint in endpoints %}
-        <div class="card endpoint-card">
-            <h4>{{ endpoint.name }}</h4>
-            <p><strong>URL:</strong> <code>{{ base_url }}{{ endpoint.url }}</code></p>
-            <p><strong>Method:</strong> {{ endpoint.method }}</p>
-            <p>{{ endpoint.description }}</p>
-        </div>
-        {% endfor %}
-    </div>
-
-    <p style="font-size:12px;color:#555;margin-top:15px;">
-        Note: Keep your API keys secure. Do not share them publicly.
-    </p>
-
-</div>
-
 <style>
-.page-container {
-    max-width:900px;
-    margin:auto;
-    padding:20px;
-}
-.card {
-    background:white;
-    padding:20px;
-    border-radius:12px;
-    box-shadow:0 3px 12px rgba(0,0,0,0.1);
-    margin-bottom:20px;
-}
-.endpoint-card {
-    margin-bottom:15px;
-}
-.btn-primary {
-    background:#6a0dad;
-    color:white;
-    padding:12px 20px;
-    border:none;
-    border-radius:8px;
-    cursor:pointer;
-    font-weight:600;
-    margin-top:10px;
-}
-.btn-primary:hover {
-    background:#501393;
-    transform:scale(1.02);
-}
-.api-message {
-    margin-top:15px;
-    font-size:14px;
-}
-.api-message p {
-    margin:5px 0;
-}
+    .page-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #5a2bd6;
+        margin-bottom: 15px;
+    }
+
+    .card {
+        background: #fff;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.06);
+    }
+
+    .card h3 {
+        margin: 0 0 10px;
+        color: #5a2bd6;
+        font-weight: 600;
+        font-size: 18px;
+    }
+
+    .key-box {
+        background: #f3f0ff;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: monospace;
+        margin-bottom: 10px;
+        word-break: break-all;
+        font-size: 14px;
+    }
+
+    .btn-primary {
+        background: #5a2bd6;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 8px;
+        cursor: pointer;
+        border: none;
+        font-size: 14px;
+    }
+
+    .btn-danger {
+        background: #ff3b3b;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 8px;
+        cursor: pointer;
+        border: none;
+        font-size: 14px;
+    }
+
+    .endpoint-section {
+        margin-top: 25px;
+        margin-bottom: 10px;
+        font-weight: 700;
+        font-size: 20px;
+        color: #5a2bd6;
+    }
+
+    .endpoint-card {
+        padding: 18px;
+        background: #fff;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        border-left: 5px solid #5a2bd6;
+        box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+
+    .method {
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: white;
+        display: inline-block;
+        margin-bottom: 8px;
+    }
+
+    .GET { background: #4CAF50; }
+    .POST { background: #2196F3; }
+    .Header { background: #FF9800; }
+
+    pre {
+        background: #222;
+        color: #fff;
+        padding: 12px;
+        border-radius: 8px;
+        overflow-x: auto;
+        font-size: 13px;
+    }
 </style>
 
-<script>
-document.getElementById("generateKeysBtn").addEventListener("click", () => {
-    const btn = document.getElementById("generateKeysBtn");
-    btn.disabled = true;
-    btn.innerText = "Generating...";
+<h2 class="page-title">API Documentation</h2>
 
-    fetch("{% url 'generate_api_keys' %}")
-        .then(res => res.json())
-        .then(data => {
-            const msgDiv = document.getElementById("apiKeyMessage");
-            if(data.success) {
-                msgDiv.innerHTML = `
-                    <p><strong>Public Key:</strong> <code>${data.public_key}</code></p>
-                    <p><strong>Secret Key:</strong> <code>${data.secret_key}</code></p>
-                `;
-            } else {
-                msgDiv.innerHTML = `<p style="color:red;">${data.message}</p>`;
-            }
-        })
-        .catch(err => {
-            document.getElementById("apiKeyMessage").innerHTML = `<p style="color:red;">Error generating keys.</p>`;
-        })
-        .finally(() => {
-            btn.disabled = false;
-            btn.innerText = "Generate API Keys";
-        });
+<!-- ========================= -->
+<!-- API KEY CARD -->
+<!-- ========================= -->
+<div class="card">
+    <h3>Your API Keys</h3>
+
+    {% if public_key %}
+        <p><strong>Status:</strong> <span style="color:green;font-weight:600;">LIVE ✓</span></p>
+
+        <p><strong>Public Key:</strong></p>
+        <div class="key-box">{{ public_key }}</div>
+
+        <p><strong>Secret Key:</strong></p>
+        <div class="key-box">{{ secret_key }}</div>
+
+        <button id="regenBtn" class="btn-primary">Regenerate Keys</button>
+        <button id="deleteBtn" class="btn-danger" style="margin-left:10px;">Delete Keys</button>
+
+    {% else %}
+        <p><strong>Status:</strong> <span style="color:red;font-weight:600;">No Keys Generated</span></p>
+        <button id="regenBtn" class="btn-primary">Generate API Keys</button>
+    {% endif %}
+</div>
+
+
+<!-- ========================= -->
+<!-- API SECTIONS -->
+<!-- ========================= -->
+{% for section in api_sections %}
+    <div class="endpoint-section">{{ section.title }}</div>
+    <p style="margin-top:-8px;margin-bottom:13px;color:#444;">{{ section.description }}</p>
+
+    {% for ep in section.endpoints %}
+        <div class="endpoint-card">
+            <div class="method {{ ep.method }}">{{ ep.method }}</div>
+
+            <h4 style="margin:8px 0;font-weight:600;">{{ ep.name }}</h4>
+
+            <p style="color:#555;">{{ ep.description }}</p>
+
+            <strong>URL:</strong>
+            <div class="key-box">{{ base_url }}{{ ep.url }}{{ ep.query_params|default:"" }}</div>
+
+            {% if ep.sample %}
+                <strong>Sample Request:</strong>
+                <pre>{{ ep.sample.curl|default:ep.sample.json|default:ep.sample.json_response|safe }}</pre>
+            {% endif %}
+        </div>
+    {% endfor %}
+{% endfor %}
+
+
+<script>
+document.getElementById("regenBtn")?.addEventListener("click", function(){
+    fetch("/api-docs/generate-keys/")
+    .then(r => r.json())
+    .then(data => {
+        alert("API Keys updated!");
+        location.reload();
+    });
+});
+
+document.getElementById("deleteBtn")?.addEventListener("click", function(){
+    if (!confirm("Delete your API keys permanently?")) return;
+
+    fetch("/api-docs/delete-keys/")
+    .then(r => r.json())
+    .then(data => {
+        alert(data.message);
+        location.reload();
+    });
 });
 </script>
 

@@ -1,24 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+
 <div class="page-card">
 
-    <h2>Sell Bundle</h2>
+    <h2 style="text-align:center; color:#6a0dad;">Sell Bundle</h2>
 
     <form method="POST">
         {% csrf_token %}
 
         <label>Select Bundle</label>
-        <select name="bundle_id" required>
-    {% for b in bundles %}
-    <option value="{{ b.id }}">{{ b.network }} - {{ b.name }} (GHS {{ b.price }})</option>
-    {% endfor %}
-</select>
-
+        <select name="bundle_id" required style="width:100%; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #ccc;">
+            <option value="" disabled selected>-- Choose a bundle --</option>
+            {% for b in bundles %}
+                <option value="{{ b.id }}">
+                    {{ b.network }} • {{ b.name }} — GHS {{ b.price }}
+                    {% if b.send_via_api %}(API){% else %}(Admin){% endif %}
+                </option>
+            {% endfor %}
+        </select>
 
         <label>Quantity</label>
-        <input type="number" name="quantity" value="1" min="1" required>
+        <input type="number" name="quantity" value="1" min="1" required
+               style="width:100%; padding:10px; border-radius:6px; margin-bottom:15px; border:1px solid #ccc;">
 
         <label>Customer Phone</label>
-        <input type="text" name="customer_phone" placeholder="Enter phone number" required>
+        <input type="text" name="customer_phone" placeholder="Enter customer phone" required
+               style="width:100%; padding:10px; border-radius:6px; margin-bottom:20px; border:1px solid #ccc;">
 
         <button class="btn-primary">Sell Bundle</button>
     </form>
 </div>
+
+<style>
+.page-card {
+    max-width: 95%;
+    width: 600px;
+    margin:20px auto;
+    background:#fff;
+    padding:20px;
+    border-radius:14px;
+    box-shadow:0 3px 10px rgba(0,0,0,0.1);
+}
+
+.btn-primary {
+    background:#6a0dad;
+    color:white;
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    margin-top:20px;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.3s;
+}
+.btn-primary:hover { background:#501393; transform:scale(1.02); }
+
+@media(max-width:600px){
+    .page-card { width:95%; padding:15px; }
+    input, button, select { font-size:14px; padding:10px; }
+}
+</style>
+
+{% endblock %}
