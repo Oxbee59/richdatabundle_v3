@@ -523,7 +523,7 @@ def buy_bundle(request):
     })
 
 ## -------------------
-# SELL BUNDLE (Final Version with Wallet Deduction)
+# SELL BUNDLE (Final Version with Wallet Deduction & Wallet Display)
 # -------------------
 @login_required
 @transaction.atomic
@@ -602,7 +602,7 @@ def sell_bundle(request):
                 return redirect("sell_bundle")
 
         # ---------------------------
-        # WALLET DEDUCTION (NEW)
+        # WALLET DEDUCTION
         # ---------------------------
         profile.wallet -= api_cost
         profile.save()
@@ -635,7 +635,13 @@ def sell_bundle(request):
         messages.success(request, f"Successfully sold {b.name} to {phone}. GHS {api_cost} deducted from wallet.")
         return redirect("agent_dashboard")
 
-    return render(request, "sell_bundle.html", {"bundles": bundles})
+    # ---------------------------
+    # SEND WALLET BALANCE TO TEMPLATE
+    # ---------------------------
+    return render(request, "sell_bundle.html", {
+        "bundles": bundles,
+        "wallet_balance": profile.wallet  # <-- add this
+    })
 
 
 # -------------------
@@ -732,28 +738,6 @@ def admin_update_agent_wallet(request):
             messages.error(request, "Agent not found.")
             return redirect("admin_update_agent_wallet")
 
-        # PAYSTACK TRANSFER FROM ADMIN BALANCE
-        headers = {
-            "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "source": "balance",
-            "reason": reason,
-            "amount": int(amount * 100),  # convert to pesewas
-            "recipient": settings.AGENT_PAYSTACK_RECIPIENT,
-            "currency": "GHS"
-        }
-        try:
-            r = requests.post("https://api.paystack.co/transfer", json=payload, headers=headers, timeout=10)
-            res = r.json()
-            if not res.get("status"):
-                messages.error(request, f"Paystack Error: {res.get('message')}")
-                return redirect("admin_update_agent_wallet")
-        except Exception as e:
-            messages.error(request, f"Paystack API error: {str(e)}")
-            return redirect("admin_update_agent_wallet")
-
         # Update Wallet Locally
         profile.wallet += amount
         profile.save()
@@ -768,7 +752,10 @@ def admin_update_agent_wallet(request):
         )
 
         send_wallet_alert(profile.user, amount, "CREDIT")
-        messages.success(request, f"Successfully funded GHS {amount} to {profile.user.email}")
+        messages.success(
+            request,
+            f"Successfully funded GHS {amount} to {profile.user.email}. Current balance: GHS {profile.wallet}"
+        )
         return redirect(f"{reverse('admin_update_agent_wallet')}?search_email={email}")
 
     return render(request, "admin_update_agent_wallet.html", {"agent_data": agent_data})
@@ -806,48 +793,31 @@ def admin_deduct_agent_wallet(request):
             messages.error(request, "Agent not found.")
             return redirect("admin_deduct_agent_wallet")
 
-        # Create transaction locally first
-        reference = f"ADM_DED_{uuid.uuid4().hex[:12].upper()}"
-        tx = WalletTransaction.objects.create(
+        if profile.wallet < amount:
+            messages.error(request, f"Cannot deduct GHS {amount}. Agent balance is only GHS {profile.wallet}")
+            return redirect(f"{reverse('admin_deduct_agent_wallet')}?search_email={email}")
+
+        # Deduct locally
+        profile.wallet -= amount
+        profile.save()
+
+        WalletTransaction.objects.create(
             user=profile.user,
             transaction_type="DEDUCT",
             amount=amount,
             reason=reason,
             performed_by=request.user,
-            reference=reference,
-            success=False
+            success=True
         )
 
-        # Initialize Paystack transfer
-        callback_url = request.build_absolute_uri(reverse("paystack_deduct_callback"))
-        payload = {
-            "amount": int(amount * 100),
-            "recipient": settings.AGENT_PAYSTACK_RECIPIENT,
-            "reason": reason,
-            "source": "balance"
-        }
-        headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}", "Content-Type": "application/json"}
-        try:
-            r = requests.post("https://api.paystack.co/transfer", json=payload, headers=headers, timeout=10)
-            res = r.json()
-            if not res.get("status"):
-                messages.error(request, f"Paystack Error: {res.get('message')}")
-                return redirect("admin_deduct_agent_wallet")
-        except Exception as e:
-            messages.error(request, f"Paystack API error: {str(e)}")
-            return redirect("admin_deduct_agent_wallet")
-
-        # Deduct locally
-        profile.wallet -= amount
-        profile.save()
-        tx.success = True
-        tx.save()
         send_wallet_alert(profile.user, amount, "DEBIT")
-        messages.success(request, f"Successfully deducted GHS {amount} from {profile.user.email}")
+        messages.success(
+            request,
+            f"Successfully deducted GHS {amount} from {profile.user.email}. Current balance: GHS {profile.wallet}"
+        )
         return redirect(f"{reverse('admin_deduct_agent_wallet')}?search_email={email}")
 
     return render(request, "admin_deduct_agent_wallet.html", {"agent_data": agent_data})
-
 
 
 # ---------------------------

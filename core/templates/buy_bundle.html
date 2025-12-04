@@ -6,24 +6,24 @@
     <h2 style="text-align:center; color:#6a0dad;">Buy Data Bundle</h2>
 
     <!-- Wallet Balance -->
-    <p style="text-align:center; font-weight:bold; color:#333; margin-bottom:20px;">
-        Wallet Balance: ₵ {{ wallet }}
-    </p>
+    <p class="wallet-box">Wallet Balance: <strong>₵ {{ wallet }}</strong></p>
 
     <!-- Messages -->
     {% if messages %}
-        {% for message in messages %}
-            <div class="alert {% if message.tags %}{{ message.tags }}{% endif %}">
-                {{ message }}
-            </div>
-        {% endfor %}
+        <div class="msg-container">
+            {% for message in messages %}
+                <div class="alert {% if message.tags %}{{ message.tags }}{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
     {% endif %}
 
     <form method="POST">
         {% csrf_token %}
 
         <label>Select Bundle</label>
-        <select name="bundle_id" required>
+        <select name="bundle_id" required class="input">
             <option value="" disabled selected>-- Choose a bundle --</option>
             {% for b in bundles %}
                 <option value="{{ b.id }}">
@@ -34,7 +34,7 @@
         </select>
 
         <label>Recipient Phone</label>
-        <input type="text" name="recipient" placeholder="Enter recipient phone" required>
+        <input type="text" name="recipient" placeholder="Enter recipient phone" required class="input">
 
         <button class="btn-primary">Buy Bundle</button>
     </form>
@@ -51,20 +51,20 @@
     box-shadow:0 3px 10px rgba(0,0,0,0.1);
 }
 
-.page-card label {
-    display:block;
-    margin-bottom:5px;
-    font-weight:bold;
-    color:#333;
+.input {
+    width:100%; padding:10px; border-radius:6px;
+    margin-bottom:15px; border:1px solid #ccc;
 }
 
-.page-card select, .page-card input {
-    width:100%;
-    padding:10px;
-    margin-bottom:15px;
-    border:1px solid #ccc;
-    border-radius:6px;
+.wallet-box {
+    background:#f7f3ff;
+    padding:10px 15px;
+    border-radius:8px;
+    border-left:5px solid #6a0dad;
+    margin-bottom:20px;
     font-size:15px;
+    text-align:center;
+    font-weight:bold;
 }
 
 .btn-primary {
@@ -82,20 +82,38 @@
 }
 .btn-primary:hover { background:#501393; transform:scale(1.02); }
 
-/* Messages */
+/* Message styling */
+.msg-container { margin-bottom: 20px; }
+
 .alert {
-    padding:10px 15px;
-    border-radius:8px;
-    margin-bottom:15px;
-    font-weight:bold;
+    padding: 12px 15px;
+    border-radius: 8px;
+    font-size: 15px;
+    margin-bottom: 10px;
+    animation: fadeIn 0.4s ease-in-out;
     text-align:center;
 }
-.alert.success { background:#d4edda; color:#155724; }
-.alert.error { background:#f8d7da; color:#721c24; }
+
+.alert.success {
+    background: #e8ffe8;
+    border-left: 5px solid #3cb043;
+    color: #246b2c;
+}
+
+.alert.error {
+    background: #ffeaea;
+    border-left: 5px solid #d9534f;
+    color: #a94442;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 
 @media(max-width:600px){
     .page-card { width:95%; padding:15px; }
-    select, input, button { font-size:14px; padding:10px; }
+    input, button, select { font-size:14px; padding:10px; }
 }
 </style>
 

@@ -4,21 +4,29 @@
 <div class="page-card">
     <h2 style="text-align:center;color:#6a0dad;">Fund Agent Wallet</h2>
 
-    {% for msg in messages %}
-        <div class="alert-{{ msg.tags }}">{{ msg }}</div>
-    {% endfor %}
+    <!-- MESSAGES -->
+    {% if messages %}
+        {% for msg in messages %}
+            {% if msg.tags == 'success' %}
+                <div class="alert-success">{{ msg }}</div>
+            {% else %}
+                <div class="alert-error">{{ msg }}</div>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
 
     <!-- SEARCH AGENT -->
-    <form method="GET" autocomplete="off">
+    <form method="GET" autocomplete="off" style="margin-bottom:20px;">
         <input type="email" name="search_email" placeholder="Search agent by email" required class="input-style" value="{{ agent_data.user.email|default:'' }}">
         <button class="btn-primary" type="submit">Search</button>
     </form>
 
     {% if agent_data %}
-    <div style="margin:15px 0; padding:10px; background:#f6f0ff; border-radius:8px;">
+    <!-- AGENT INFO -->
+    <div class="wallet-card">
         <strong>Agent:</strong> {{ agent_data.user.username }} <br>
         <strong>Email:</strong> {{ agent_data.user.email }} <br>
-        <strong>Wallet:</strong> GHS {{ agent_data.wallet }}
+        <strong>Wallet:</strong> GHS <span id="wallet_balance">{{ agent_data.wallet }}</span>
     </div>
 
     <!-- FUND FORM -->
@@ -31,14 +39,48 @@
         <input type="text" name="reason" value="Admin wallet top-up" class="input-style">
         <button type="submit" class="btn-primary">💰 Fund Wallet</button>
     </form>
+
+    <!-- RECENT TRANSACTIONS -->
+    <h3 style="margin-top:30px;">Recent Transactions</h3>
+    <table class="transactions-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Reason</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in agent_data.user.wallet_transactions.all|slice:":10" %}
+            <tr>
+                <td>{{ tx.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ tx.transaction_type }}</td>
+                <td>GHS {{ tx.amount }}</td>
+                <td>{{ tx.reason }}</td>
+                <td>{{ tx.success|yesno:"Success,Failed" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align:center;">No transactions yet</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
     {% endif %}
 </div>
 
 <style>
-.page-card { max-width:600px; margin:auto; padding:25px; background:white; border-radius:15px; box-shadow:0 3px 10px rgba(0,0,0,0.1);}
-.input-style { width:100%; padding:10px; margin-bottom:15px; border-radius:6px; border:1px solid #ccc;}
-.btn-primary { background:#6a0dad; color:white; padding:12px; border:none; border-radius:8px; cursor:pointer; width:100%;}
-.alert-success {padding:10px;margin:10px 0;background:#28a745;color:white;border-radius:6px;}
-.alert-error {padding:10px;margin:10px 0;background:#dc3545;color:white;border-radius:6px;}
+.page-card { max-width:600px; margin:auto; background:white; padding:25px; border-radius:15px; box-shadow:0 3px 10px rgba(0,0,0,0.1);}
+.input-style { width:100%; padding:10px; margin-bottom:15px; border-radius:6px; border:1px solid #ccc; }
+.input-style:focus { border-color:#6a0dad; box-shadow:0 0 5px rgba(106,13,173,0.5); }
+.btn-primary { background:#6a0dad; color:white; padding:12px; border:none; border-radius:8px; cursor:pointer; width:100%; font-weight:600; }
+.btn-primary:hover { background:#501393; transform:scale(1.03); }
+.alert-success { padding:12px; margin-bottom:10px; border-radius:8px; color:white; background:#28a745; }
+.alert-error { padding:12px; margin-bottom:10px; border-radius:8px; color:white; background:#dc3545; }
+.wallet-card { margin-bottom:20px; padding:15px; background:#f6f0ff; border-radius:8px; }
+.transactions-table { width:100%; border-collapse:collapse; margin-top:10px; }
+.transactions-table th, .transactions-table td { border:1px solid #ddd; padding:8px; text-align:left; }
+.transactions-table th { background:#6a0dad; color:white; }
 </style>
+
 {% endblock %}
