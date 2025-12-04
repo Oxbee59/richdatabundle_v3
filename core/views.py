@@ -522,8 +522,8 @@ def buy_bundle(request):
         "bundles": bundles
     })
 
-# -------------------
-# SELL BUNDLE (Final Version)
+## -------------------
+# SELL BUNDLE (Final Version with Wallet Deduction)
 # -------------------
 @login_required
 @transaction.atomic
@@ -554,6 +554,13 @@ def sell_bundle(request):
 
         b = get_object_or_404(Bundle, pk=int(bundle_id))
         price = Decimal(str(b.price))
+
+        # ---------------------------
+        # CHECK WALLET BALANCE
+        # ---------------------------
+        if profile.wallet < price:
+            messages.error(request, "Insufficient wallet balance.")
+            return redirect("sell_bundle")
 
         # ---------------------------
         # CALL SMARTDATALINK API
@@ -595,6 +602,12 @@ def sell_bundle(request):
                 return redirect("sell_bundle")
 
         # ---------------------------
+        # WALLET DEDUCTION (NEW)
+        # ---------------------------
+        profile.wallet -= api_cost
+        profile.save()
+
+        # ---------------------------
         # SAVE PURCHASE RECORD
         # ---------------------------
         Purchase.objects.create(
@@ -619,7 +632,7 @@ def sell_bundle(request):
             quantity=1
         )
 
-        messages.success(request, f"Successfully sold {b.name} to {phone}.")
+        messages.success(request, f"Successfully sold {b.name} to {phone}. GHS {api_cost} deducted from wallet.")
         return redirect("agent_dashboard")
 
     return render(request, "sell_bundle.html", {"bundles": bundles})

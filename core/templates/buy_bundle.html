@@ -3,39 +3,38 @@
 
 <div class="page-card">
 
-    <h2 style="text-align:center; color:#6a0dad;">Buy Bundle</h2>
+    <h2 style="text-align:center; color:#6a0dad;">Buy Data Bundle</h2>
 
-    <div class="wallet-box" style="
-        background:#f8f1ff;
-        padding:12px;
-        border-radius:8px;
-        text-align:center;
-        font-weight:bold;
-        color:#520a9e;
-        margin-bottom:20px;
-    ">
-        Wallet Balance: GHS {{ wallet }}
-    </div>
+    <!-- Wallet Balance -->
+    <p style="text-align:center; font-weight:bold; color:#333; margin-bottom:20px;">
+        Wallet Balance: ₵ {{ wallet }}
+    </p>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags %}{{ message.tags }}{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
 
     <form method="POST">
         {% csrf_token %}
-        <input type="hidden" id="bundle_id" name="bundle_id" required>
-
-        <label>Recipient Number</label>
-        <input type="text" name="recipient" required
-               style="width:100%; padding:10px; border-radius:6px; margin-top:5px; margin-bottom:15px; border:1px solid #ccc;">
 
         <label>Select Bundle</label>
-        <select id="bundle_select" required
-                style="width:100%; padding:12px; border-radius:8px; border:1px solid #ccc; margin-top:5px; margin-bottom:20px;">
+        <select name="bundle_id" required>
             <option value="" disabled selected>-- Choose a bundle --</option>
             {% for b in bundles %}
                 <option value="{{ b.id }}">
-                    {{ b.network }} • {{ b.name }} — GHS {{ b.price }}
+                    {{ b.network }} • {{ b.name }} — ₵ {{ b.price }}
                     {% if b.send_via_api %}(API){% else %}(Admin){% endif %}
                 </option>
             {% endfor %}
         </select>
+
+        <label>Recipient Phone</label>
+        <input type="text" name="recipient" placeholder="Enter recipient phone" required>
 
         <button class="btn-primary">Buy Bundle</button>
     </form>
@@ -52,6 +51,22 @@
     box-shadow:0 3px 10px rgba(0,0,0,0.1);
 }
 
+.page-card label {
+    display:block;
+    margin-bottom:5px;
+    font-weight:bold;
+    color:#333;
+}
+
+.page-card select, .page-card input {
+    width:100%;
+    padding:10px;
+    margin-bottom:15px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    font-size:15px;
+}
+
 .btn-primary {
     background:#6a0dad;
     color:white;
@@ -59,7 +74,7 @@
     padding:12px;
     border:none;
     border-radius:8px;
-    margin-top:20px;
+    margin-top:10px;
     font-size:16px;
     font-weight:bold;
     cursor:pointer;
@@ -67,16 +82,21 @@
 }
 .btn-primary:hover { background:#501393; transform:scale(1.02); }
 
+/* Messages */
+.alert {
+    padding:10px 15px;
+    border-radius:8px;
+    margin-bottom:15px;
+    font-weight:bold;
+    text-align:center;
+}
+.alert.success { background:#d4edda; color:#155724; }
+.alert.error { background:#f8d7da; color:#721c24; }
+
 @media(max-width:600px){
     .page-card { width:95%; padding:15px; }
-    input, button, select { font-size:14px; padding:10px; }
+    select, input, button { font-size:14px; padding:10px; }
 }
 </style>
-
-<script>
-document.getElementById("bundle_select").addEventListener("change", function() {
-    document.getElementById("bundle_id").value = this.value;
-});
-</script>
 
 {% endblock %}
