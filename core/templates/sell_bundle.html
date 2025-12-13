@@ -3,9 +3,11 @@
 
 <div class="page-card">
 
-    <h2 style="text-align:center; color:#6a0dad;">Sell Bundle</h2>
+    <h2 style="text-align:center; color:#6a0dad;">Sell Data Bundle</h2>
 
-    <p class="wallet-box">Wallet Balance: <strong>GHS {{ wallet_balance }}</strong></p>
+    <p class="wallet-box">
+        Wallet Balance: <strong>GHS {{ wallet_balance|floatformat:2 }}</strong>
+    </p>
 
     {% if messages %}
         <div class="msg-container">
@@ -20,6 +22,7 @@
     <form method="POST">
         {% csrf_token %}
 
+        <!-- BUNDLE SELECTION -->
         <label>Select Bundle</label>
         <select name="bundle_id" required class="input">
             <option value="" disabled selected>-- Choose a bundle --</option>
@@ -33,15 +36,54 @@
             {% endfor %}
         </select>
 
+        <!-- CUSTOMER PHONE -->
         <label>Customer Phone</label>
-        <input type="text" name="customer_phone" placeholder="Enter customer phone" required class="input">
+        <input
+            type="tel"
+            name="customer_phone"
+            placeholder="e.g. 024XXXXXXX"
+            required
+            class="input"
+        >
 
-        <button class="btn-primary">Sell Bundle</button>
+        <button type="submit" class="btn-primary">
+            Sell Bundle
+        </button>
     </form>
 </div>
 
 <style>
-/* same styles here — unchanged */
+.page-card {
+    max-width: 450px;
+    margin: auto;
+    background: #fff;
+    padding: 25px;
+    border-radius: 10px;
+}
+
+.wallet-box {
+    text-align: center;
+    background: #f4ecff;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: #6a0dad;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
 </style>
 
 {% endblock %}

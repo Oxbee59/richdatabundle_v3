@@ -5,7 +5,9 @@
 
     <h2 style="text-align:center; color:#6a0dad;">Buy Data Bundle</h2>
 
-    <p class="wallet-box">Wallet Balance: <strong>₵ {{ wallet }}</strong></p>
+    <p class="wallet-box">
+        Wallet Balance: <strong>GHS {{ wallet|floatformat:2 }}</strong>
+    </p>
 
     {% if messages %}
         <div class="msg-container">
@@ -20,29 +22,68 @@
     <form method="POST">
         {% csrf_token %}
 
+        <!-- BUNDLE SELECTION -->
         <label>Select Bundle</label>
         <select name="bundle_id" required class="input">
             <option value="" disabled selected>-- Choose a bundle --</option>
 
             {% for b in bundles %}
                 <option value="{{ b.id }}">
-                    {{ b.network }} • {{ b.name }} 
-                    — ₵ {{ b.api_price|default:b.price }}
+                    {{ b.network }} • {{ b.name }}
+                    — GHS {{ b.api_price|default:b.price }}
                     ({{ b.type|upper }})
                 </option>
             {% endfor %}
-
         </select>
 
+        <!-- RECIPIENT PHONE -->
         <label>Recipient Phone</label>
-        <input type="text" name="recipient" placeholder="Enter recipient phone" required class="input">
+        <input
+            type="tel"
+            name="recipient"
+            placeholder="e.g. 024XXXXXXX"
+            required
+            class="input"
+        >
 
-        <button class="btn-primary">Buy Bundle</button>
+        <button type="submit" class="btn-primary">
+            Buy Bundle
+        </button>
     </form>
 </div>
 
 <style>
-/* (your same styles — unchanged) */
+.page-card {
+    max-width: 450px;
+    margin: auto;
+    background: #fff;
+    padding: 25px;
+    border-radius: 10px;
+}
+
+.wallet-box {
+    text-align: center;
+    background: #f4ecff;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: #6a0dad;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
 </style>
 
 {% endblock %}
