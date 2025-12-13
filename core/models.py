@@ -52,60 +52,62 @@ class AgentProfile(models.Model):
 
     def __str__(self):
         return f"AgentProfile: {self.user.username}"
-
-
 # ---------------------------
-# BUNDLE MODEL
+# BUNDLE MODEL (FINAL VERSION)
 # ---------------------------
 class Bundle(models.Model):
-    """
-    Bundles are managed by admin in the app. Optionally a bundle can be delivered
-    via external data API (send_via_api=True). 'stock' is optional and can be used
-    if you want admin-limited stock.
-    """
+
     NETWORK_CHOICES = (
         ("MTN", "MTN"),
         ("AirtelTigo", "AirtelTigo"),
         ("Vodafone", "Vodafone"),
     )
 
-    name = models.CharField(max_length=100)
-    code = models.CharField(max_length=50, blank=True)     # vendor code if needed
+    name = models.CharField(max_length=120)
+    vendor_code = models.CharField(max_length=80, blank=True, null=True,
+        help_text="Package size or vendor code used by SmartDataLink API")
+
+    api_package_id = models.CharField(max_length=120, blank=True, null=True,
+        help_text="Future support if API requires a package ID")
+
     network = models.CharField(max_length=50, choices=NETWORK_CHOICES)
-    price = models.DecimalField(max_digits=12, decimal_places=2)
-    stock = models.IntegerField(default=0, help_text="Admin-managed stock (optional).")
+
+    price = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text="Selling price on your platform"
+    )
+
+    vendor_price = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="API cost if SmartDataLink charges different price"
+    )
+
+    stock = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
-    # If True, the app will call the external data API to deliver this bundle
-    # using admin/data-source credentials. If False, the bundle is delivered locally.
     send_via_api = models.BooleanField(
         default=False,
-        help_text="If checked, this bundle is delivered via configured external API."
+        help_text="If True, delivery goes through SmartDataLink API"
     )
+
+    # Optional tags
+    admin_notes = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    admin_notes = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.name} - {self.network}"
+        return f"{self.network} - {self.name}"
 
 
 # ---------------------------
-# ORDER / PURCHASE MODEL
+# PURCHASE MODEL (FINAL VERSION)
 # ---------------------------
 class Purchase(models.Model):
-    """
-    Order history for every attempted/finished sale.
-    - bundle: optional FK if admin bundle was used
-    - bundle_name/network: stored for API bundles or when names change
-    - source: where the bundle was sourced from (ADMIN or API)
-    - transaction_reference: for payment/transmission reference (Paystack ref or API ref)
-    - response_data: JSONField to keep external API response for debugging/audit
-    """
+
     SOURCE_CHOICES = (
-        ("ADMIN", "Admin bundle"),
-        ("API", "External API"),
+        ("ADMIN", "Admin Bundle"),
+        ("API", "SmartDataLink API"),
     )
 
     STATUS_CHOICES = (
@@ -116,16 +118,39 @@ class Purchase(models.Model):
     )
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    bundle = models.ForeignKey('Bundle', on_delete=models.SET_NULL, null=True, blank=True)
+    bundle = models.ForeignKey('Bundle', on_delete=models.SET_NULL,
+                               null=True, blank=True)
+
     bundle_name = models.CharField(max_length=200, blank=True, null=True)
     network = models.CharField(max_length=50, blank=True, null=True)
+
     quantity = models.PositiveIntegerField(default=1)
     amount = models.DecimalField(max_digits=14, decimal_places=2)
-    recipient = models.CharField(max_length=100)  # e.g. recipient phone or username
-    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default="ADMIN")
-    transaction_reference = models.CharField(max_length=200, blank=True, null=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
-    response_data = models.JSONField(blank=True, null=True)  # external API responses, debug info
+
+    recipient = models.CharField(max_length=100)
+
+    source = models.CharField(
+        max_length=10, choices=SOURCE_CHOICES, default="ADMIN"
+    )
+
+    # Saving API reference
+    transaction_reference = models.CharField(
+        max_length=200, blank=True, null=True,
+        help_text="API order reference or paystack reference"
+    )
+
+    # API JSON response saved for debugging
+    response_data = models.JSONField(
+        blank=True, null=True,
+        help_text="Raw SmartDataLink API response for audit"
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default="PENDING"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -137,7 +162,7 @@ class Purchase(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.user.username} - {self.bundle_name or 'Bundle'} x{self.quantity} ({self.status})"
+        return f"{self.bundle_name or 'Bundle'} - {self.status}"
 
 
 # ---------------------------
@@ -158,6 +183,8 @@ class AppSettings(models.Model):
     # Data API
     SMART_API_KEY = models.CharField(max_length=200, blank=True)
     SMART_BASE_URL = models.CharField(max_length=300, blank=True)
+    SMART_API_SECRET = models.CharField(max_length=200, blank=True)
+
 
     # NEW FIELDS FOR HISTORY
     created_at = models.DateTimeField(auto_now_add=True)

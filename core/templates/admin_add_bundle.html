@@ -1,83 +1,66 @@
 {% extends "base.html" %}
 {% load static %}
-
 {% block content %}
 
-<style>
-.card-custom {
-    background: #fff;
-    padding: 25px;
-    border-radius: 16px;
-    box-shadow: 0 5px 18px rgba(90, 43, 214, 0.15);
-    border-left: 5px solid #5a2bd6;
-    margin-top: 20px;
-}
+<div class="card-custom">
 
-.btn-custom {
-    background: #5a2bd6;
-    color: white;
-    font-weight: 600;
-    padding: 8px 18px;
-    border-radius: 8px;
-    border: none;
-    transition: 0.3s;
-}
+    <h2 style="color:#5a1ea1;">Add New Bundle</h2>
 
-.btn-custom:hover {
-    transform: scale(1.05);
-}
+    <form method="POST">
+        {% csrf_token %}
 
-/* Mobile adjustments */
-@media(max-width: 760px) {
-    .card-custom { padding: 18px; }
-    .form-control { font-size: 14px; }
-    .btn-custom { width: 100%; margin-top: 8px; }
-}
-</style>
+        <div class="mb-3">
+            <label class="form-label">Bundle Name</label>
+            <input type="text" name="name" class="form-control" required placeholder="1GB Daily">
+        </div>
 
-<div class="container mt-4 col-md-6">
+        <div class="mb-3">
+            <label class="form-label">SmartDataLink Package Code</label>
+            <input type="text" name="vendor_code" class="form-control" required
+                   placeholder="e.g. 1GB, 500MB, MTN_1GB">
+        </div>
 
-    <h2 class="mb-4" style="color:#5a1ea1; font-weight:700;">Add New Bundle</h2>
+        <div class="mb-3">
+            <label class="form-label">Network</label>
+            <select name="network" class="form-control" required>
+                <option value="">-- Select --</option>
+                <option value="MTN">MTN</option>
+                <option value="AirtelTigo">AirtelTigo</option>
+                <option value="Vodafone">Vodafone</option>
+            </select>
+        </div>
 
-    <div class="card-custom">
-        <form method="POST">
-            {% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label">Selling Price (₵)</label>
+            <input type="number" step="0.01" name="price" class="form-control" required>
+        </div>
 
-            <div class="mb-3">
-                <label class="form-label">Bundle Name</label>
-                <input type="text" name="name" class="form-control" required placeholder="e.g. 1GB Daily">
-            </div>
+        <div class="mb-3">
+            <label class="form-label">API Cost (₵)</label>
+            <input type="number" step="0.01" name="vendor_price" class="form-control">
+        </div>
 
-            <div class="mb-3">
-                <label class="form-label">Bundle Code</label>
-                <input type="text" name="code" class="form-control" required placeholder="USSD or identifier">
-            </div>
+        <div class="mb-3">
+            <label class="form-label">Bundle Type</label>
+            <select name="bundle_type" class="form-control" required>
+                <option value="SME">SME</option>
+                <option value="CORPORATE">CORPORATE</option>
+                <option value="GIFTING">GIFTING</option>
+                <option value="STATIC">STATIC</option>
+            </select>
+        </div>
 
-            <div class="mb-3">
-                <label class="form-label">Network</label>
-                <select name="network" class="form-control" required>
-                    <option value="">-- Select --</option>
-                    <option>MTN</option>
-                    <option>AirtelTigo</option>
-                    <option>Glo</option>
-                    <option>Vodafone</option>
-                </select>
-            </div>
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" name="send_via_api" id="apiCheck">
+            <label class="form-check-label" for="apiCheck">
+                Fetch & Deliver via SmartDataLink API
+            </label>
+        </div>
 
-            <div class="mb-3">
-                <label class="form-label">Price (₵)</label>
-                <input type="number" step="0.01" name="price" class="form-control" required placeholder="e.g. 5.00">
-            </div>
+        <button type="submit" class="btn-custom">Save</button>
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">Cancel</a>
 
-            <div class="form-check mb-3">
-                <input type="checkbox" class="form-check-input" name="send_via_api" id="apiCheck">
-                <label class="form-check-label" for="apiCheck">Send via API</label>
-            </div>
-
-            <button type="submit" class="btn btn-custom">Save</button>
-            <a href="{% url 'admin_dashboard' %}" class="btn btn-secondary">Cancel</a>
-        </form>
-    </div>
+    </form>
 
 </div>
 

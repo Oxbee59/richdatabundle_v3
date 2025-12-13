@@ -3,7 +3,7 @@ from django.db import models
 from decimal import Decimal
 import json
 import requests  # make sure 'requests' is installed in your environment
-
+import logging
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -419,112 +419,216 @@ def paystack_webhook(request):
 
 # -------------------
 # BUY BUNDLE (Final Version)
-# -------------------
+ 
+logger = logging.getLogger(__name__)
+
+
+# ---------- Helper: fetch remote bundles with fallback ----------
+def fetch_remote_bundles():
+    base = getattr(settings, "SMART_BASE_URL", None)
+    if not base:
+        return None
+    base = base.rstrip('/')
+    # prefer documented endpoints - provider uses POST to create_order.php and lists via /packages.php or similar
+    list_paths = ["/packages.php", "/bundles.php", "/api/packages.php", "/api/bundles.php", "/list_packages.php"]
+
+    payload = {"api_key": settings.SMART_API_KEY, "api_secret": settings.SMART_API_SECRET}
+    headers = {
+        "Authorization": f"Bearer {settings.SMART_API_KEY}" if settings.SMART_API_KEY else "",
+        "Content-Type": "application/json"
+    }
+
+    for path in list_paths:
+        url = f"{base}{path}"
+        try:
+            r = requests.post(url, json=payload, headers=headers, timeout=12)
+            logger.debug("fetch_remote_bundles: %s -> %s", url, r.text[:1000])
+            data = r.json()
+        except Exception as e:
+            logger.debug("fetch_remote_bundles: request failed %s: %s", url, e)
+            continue
+
+        # success shapes seen in docs: status:'success' and 'packages'/'bundles' or top-level list
+        if data.get("status") in ("success", True):
+            candidates = data.get("packages") or data.get("bundles") or data.get("data") or data.get("results") or (data if isinstance(data, list) else None)
+            if not candidates:
+                continue
+
+            packages = []
+            for item in candidates:
+                code = item.get("code") or item.get("id") or item.get("package") or item.get("package_size")
+                name = item.get("name") or item.get("package_name") or code
+                network = (item.get("network") or item.get("network_type") or item.get("provider") or "").upper()
+                price = item.get("price") or item.get("amount") or item.get("cost") or 0.0
+                try:
+                    price = float(price)
+                except Exception:
+                    price = 0.0
+
+                packages.append({
+                    "code": str(code),
+                    "name": str(name),
+                    "network": str(network),
+                    "price": price
+                })
+
+            if packages:
+                return packages
+
+    return None
+
+def create_remote_order(package_code, beneficiary):
+    """
+    Calls SmartDataLink /create_order.php and returns dict with keys:
+      success(bool), total_cost(Decimal), order_ids(list)|None, raw(response dict)
+    """
+    base = getattr(settings, "SMART_BASE_URL", "").rstrip('/')
+    url = f"{base}/create_order.php"
+    payload = {
+        "api_key": settings.SMART_API_KEY,
+        "api_secret": settings.SMART_API_SECRET,
+        "beneficiary": beneficiary,
+        "package_size": package_code
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.SMART_API_KEY}" if settings.SMART_API_KEY else "",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        r = requests.post(url, json=payload, headers=headers, timeout=20)
+        raw = r.json() if r.text else {}
+    except requests.RequestException as e:
+        logger.exception("create_remote_order: provider request failed")
+        return {"success": False, "error": "provider-unreachable", "raw": {"error": str(e)}}
+
+    # Interpret provider response per docs
+    if raw.get("status") in ("success", True) or raw.get("processed", 0) > 0:
+        # total_cost may be provided
+        total_cost = raw.get("total_cost") or raw.get("amount") or 0
+        try:
+            total_cost = Decimal(str(total_cost))
+        except Exception:
+            total_cost = Decimal("0.00")
+        return {"success": True, "total_cost": total_cost, "order_ids": raw.get("order_ids") or raw.get("order_id") or raw.get("order_ids", []), "raw": raw}
+    else:
+        # return provider message when possible
+        message = raw.get("message") or raw.get("error") or str(raw)
+        return {"success": False, "error": message, "raw": raw}
+
+
+# ---------- BUY BUNDLE (updated) ----------
 @login_required
 @transaction.atomic
 def buy_bundle(request):
     profile = request.user.userprofile
-    wallet_balance = profile.wallet
+    wallet = profile.wallet
 
-    bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
-    bundles = [{
-        "id": b.id,
-        "name": b.name,
-        "code": b.code,
-        "network": b.network,
-        "price": float(b.price),
-        "send_via_api": b.send_via_api
-    } for b in bundles_qs]
+    # fetch remote packages; fallback to local DB bundles
+    remote = fetch_remote_bundles()
+    if remote:
+        bundles = [{"id": p["code"], "name": p["name"], "code": p["code"], "network": p["network"], "price": p["price"], "send_via_api": True} for p in remote]
+    else:
+        bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
+        bundles = [{"id": b.id, "name": b.name, "code": b.vendor_code or b.code, "network": b.network, "price": float(b.price), "send_via_api": b.send_via_api} for b in bundles_qs]
 
     if request.method == "POST":
-        bundle_id = request.POST.get("bundle_id")
+        selected = request.POST.get("bundle_id")
         recipient = request.POST.get("recipient")
 
-        if not bundle_id or not recipient:
+        if not selected or not recipient:
             messages.error(request, "Select a bundle and enter recipient phone.")
             return redirect("buy_bundle")
 
-        b = get_object_or_404(Bundle, pk=int(bundle_id))
-        price = Decimal(str(b.price))
+        # Resolve bundle: remote uses package code; local uses numeric id
+        using_remote = False
+        b_obj = None
+        if remote:
+            for p in remote:
+                if selected == p["code"] or selected == p["name"]:
+                    using_remote = True
+                    package_code = p["code"]
+                    bundle_name = p["name"]
+                    network = p["network"]
+                    price = Decimal(str(p["price"]))
+                    break
+            else:
+                # maybe user selected a local bundle id
+                try:
+                    b_local = Bundle.objects.get(pk=int(selected))
+                    package_code = b_local.vendor_code or b_local.code
+                    bundle_name = b_local.name
+                    network = b_local.network
+                    price = b_local.price
+                except Exception:
+                    messages.error(request, "Selected bundle not found.")
+                    return redirect("buy_bundle")
+        else:
+            try:
+                b_local = Bundle.objects.get(pk=int(selected))
+                package_code = b_local.vendor_code or b_local.code
+                bundle_name = b_local.name
+                network = b_local.network
+                price = b_local.price
+            except Exception:
+                messages.error(request, "Selected bundle not found.")
+                return redirect("buy_bundle")
 
-        # Check wallet before anything
+        # wallet check (user/agent)
         if profile.wallet < price:
             messages.error(request, "Insufficient wallet balance.")
             return redirect("buy_bundle")
 
-        # ---------------------------
-        # CALL SMARTDATALINK API
-        # ---------------------------
-        api_cost = price
-        order_success = False
-        api_result = None
-
-        if b.send_via_api and getattr(settings, "SMART_BASE_URL", None):
-
-            smart_url = f"{settings.SMART_BASE_URL.rstrip('/')}/create_order.php"
-            payload = {
-                "api_key": settings.SMART_API_KEY,
-                "api_secret": settings.SMART_API_SECRET,
-                "beneficiary": recipient,
-                "package_size": b.code or b.name
-            }
-
-            try:
-                r = requests.post(
-                    smart_url, 
-                    json=payload,
-                    headers={
-                        "Authorization": f"Bearer {settings.SMART_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    timeout=20
-                )
-                api_result = r.json()
-                if api_result.get("status") == "success":
-                    api_cost = Decimal(str(api_result.get("total_cost", price)))
-                    order_success = True
-                else:
-                    order_success = False
-
-            except Exception:
-                order_success = False
-
-            if not order_success:
-                messages.error(request, "Provider failed to deliver bundle. Try again.")
+        # Call provider only if send_via_api true (remote packages are always API)
+        if using_remote or (not using_remote and getattr(b_local, "send_via_api", False)):
+            result = create_remote_order(package_code, recipient)
+            if not result.get("success"):
+                messages.error(request, f"Provider failed: {result.get('error')}")
+                # optionally record a failed Purchase here with response_data=result['raw']
                 return redirect("buy_bundle")
 
-        # ---------------------------
-        # ONLY AFTER SUCCESS → DEDUCT WALLET
-        # ---------------------------
-        profile.wallet -= api_cost
-        profile.save()
+            api_cost = result.get("total_cost", price)
+            # Deduct user wallet only after success
+            profile.wallet -= Decimal(api_cost)
+            profile.save()
 
-        # ---------------------------
-        # SAVE PURCHASE
-        # ---------------------------
-        Purchase.objects.create(
-            user=request.user,
-            bundle=b,
-            bundle_name=b.name,
-            network=b.network,
-            quantity=1,
-            amount=api_cost,
-            recipient=recipient,
-            status="PAID",
-            created_at=timezone.now()
-        )
+            # Save purchase with provider response
+            Purchase.objects.create(
+                user=request.user,
+                bundle=None if using_remote else b_local,
+                bundle_name=bundle_name,
+                network=network,
+                quantity=1,
+                amount=api_cost,
+                recipient=recipient,
+                source="API",
+                transaction_reference=(result.get("order_ids") and (result["order_ids"][0] if isinstance(result["order_ids"], (list,tuple)) else result["order_ids"])) or None,
+                response_data=result.get("raw"),
+                status="PAID"
+            )
 
-        messages.success(request, f"{b.name} successfully sent to {recipient}.")
+        else:
+            # Local delivery path (admin deliverable)
+            profile.wallet -= price
+            profile.save()
+            Purchase.objects.create(
+                user=request.user,
+                bundle=b_local,
+                bundle_name=b_local.name,
+                network=b_local.network,
+                quantity=1,
+                amount=price,
+                recipient=recipient,
+                source="ADMIN",
+                status="PAID"
+            )
+
+        messages.success(request, f"{bundle_name} sent to {recipient}. GHS {api_cost if 'api_cost' in locals() else price} deducted.")
         return redirect("purchases")
 
-    return render(request, "buy_bundle.html", {
-        "wallet": wallet_balance,
-        "bundles": bundles
-    })
+    return render(request, "buy_bundle.html", {"wallet": wallet, "bundles": bundles})
 
-## -------------------
-# SELL BUNDLE (Final Version with Wallet Deduction & Wallet Display)
-# -------------------
+# ---------- SELL BUNDLE (updated) ----------
 @login_required
 @transaction.atomic
 def sell_bundle(request):
@@ -534,116 +638,134 @@ def sell_bundle(request):
         messages.error(request, "You must be an agent to sell bundles.")
         return redirect("agent_dashboard")
 
-    bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
-    bundles = [{
-        "id": b.id,
-        "name": b.name,
-        "code": b.code,
-        "network": b.network,
-        "price": float(b.price),
-        "send_via_api": b.send_via_api
-    } for b in bundles_qs]
+    # fetch remote bundles first
+    remote = fetch_remote_bundles()
+    if remote:
+        bundles = [{
+            "id": p["code"],  # package code
+            "name": p["name"],
+            "code": p["code"],
+            "network": p["network"],
+            "price": p["price"],
+            "send_via_api": True
+        } for p in remote]
+    else:
+        bundles_qs = Bundle.objects.filter(is_active=True).order_by("network", "name")
+        bundles = [{
+            "id": b.id,
+            "name": b.name,
+            "code": b.vendor_code or b.code,
+            "network": b.network,
+            "price": float(b.price),
+            "send_via_api": b.send_via_api
+        } for b in bundles_qs]
 
     if request.method == "POST":
-        bundle_id = request.POST.get("bundle_id")
+        selected = request.POST.get("bundle_id")
         phone = request.POST.get("customer_phone")
 
-        if not bundle_id or not phone:
+        if not selected or not phone:
             messages.error(request, "Select a bundle and enter customer phone.")
             return redirect("sell_bundle")
 
-        b = get_object_or_404(Bundle, pk=int(bundle_id))
-        price = Decimal(str(b.price))
+        using_remote = False
+        if remote:
+            for p in remote:
+                if selected == p["code"] or selected == p["name"]:
+                    using_remote = True
+                    package_code = p["code"]
+                    bundle_name = p["name"]
+                    network = p["network"]
+                    price = Decimal(str(p["price"]))
+                    break
+            else:
+                try:
+                    b_local = Bundle.objects.get(pk=int(selected))
+                    package_code = b_local.vendor_code or b_local.code
+                    bundle_name = b_local.name
+                    network = b_local.network
+                    price = b_local.price
+                except Exception:
+                    messages.error(request, "Selected bundle not found.")
+                    return redirect("sell_bundle")
+        else:
+            try:
+                b_local = Bundle.objects.get(pk=int(selected))
+                package_code = b_local.vendor_code or b_local.code
+                bundle_name = b_local.name
+                network = b_local.network
+                price = b_local.price
+            except Exception:
+                messages.error(request, "Selected bundle not found.")
+                return redirect("sell_bundle")
 
-        # ---------------------------
-        # CHECK WALLET BALANCE
-        # ---------------------------
         if profile.wallet < price:
             messages.error(request, "Insufficient wallet balance.")
             return redirect("sell_bundle")
 
-        # ---------------------------
-        # CALL SMARTDATALINK API
-        # ---------------------------
-        api_cost = price
-        order_success = True
-
-        if b.send_via_api and getattr(settings, "SMART_BASE_URL", None):
-
-            smart_url = f"{settings.SMART_BASE_URL.rstrip('/')}/create_order.php"
-            payload = {
-                "api_key": settings.SMART_API_KEY,
-                "api_secret": settings.SMART_API_SECRET,
-                "beneficiary": phone,
-                "package_size": b.code or b.name
-            }
-
-            try:
-                r = requests.post(
-                    smart_url,
-                    json=payload,
-                    headers={
-                        "Authorization": f"Bearer {settings.SMART_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    timeout=20
-                )
-                api_result = r.json()
-                if api_result.get("status") == "success":
-                    api_cost = Decimal(str(api_result.get("total_cost", price)))
-                    order_success = True
-                else:
-                    order_success = False
-            except Exception:
-                order_success = False
-
-            if not order_success:
-                messages.error(request, "API provider failed. Try again.")
+        # always API for remote bundles
+        if using_remote or (not using_remote and getattr(b_local, "send_via_api", False)):
+            result = create_remote_order(package_code, phone)
+            if not result.get("success"):
+                messages.error(request, f"Provider failed: {result.get('error')}")
                 return redirect("sell_bundle")
 
-        # ---------------------------
-        # WALLET DEDUCTION
-        # ---------------------------
-        profile.wallet -= api_cost
-        profile.save()
+            api_cost = result.get("total_cost", price)
 
-        # ---------------------------
-        # SAVE PURCHASE RECORD
-        # ---------------------------
-        Purchase.objects.create(
-            user=request.user,
-            bundle=b,
-            bundle_name=b.name,
-            network=b.network,
-            quantity=1,
-            amount=api_cost,
-            recipient=phone,
-            status="PAID",
-            created_at=timezone.now()
-        )
+            profile.wallet -= api_cost
+            profile.save()
 
-        # ---------------------------
-        # SAVE AGENT SALE RECORD
-        # ---------------------------
-        Sale.objects.create(
-            agent=request.user,
-            bundle=b,
-            price=api_cost,
-            quantity=1
-        )
+            Purchase.objects.create(
+                user=request.user,
+                bundle=None if using_remote else b_local,
+                bundle_name=bundle_name,
+                network=network,
+                quantity=1,
+                amount=api_cost,
+                recipient=phone,
+                source="API",
+                transaction_reference=(
+                    result.get("order_ids")[0]
+                    if isinstance(result.get("order_ids"), list) and result["order_ids"]
+                    else result.get("order_ids")
+                ),
+                response_data=result.get("raw"),
+                status="PAID"
+            )
 
-        messages.success(request, f"Successfully sold {b.name} to {phone}. GHS {api_cost} deducted from wallet.")
-        return redirect("agent_dashboard")
+            Sale.objects.create(
+                agent=request.user,
+                bundle=None if using_remote else b_local,
+                price=api_cost,
+                quantity=1
+            )
 
-    # ---------------------------
-    # SEND WALLET BALANCE TO TEMPLATE
-    # ---------------------------
+        else:
+            profile.wallet -= price
+            profile.save()
+
+            Purchase.objects.create(
+                user=request.user,
+                bundle=b_local,
+                bundle_name=b_local.name,
+                network=b_local.network,
+                quantity=1,
+                amount=price,
+                recipient=phone,
+                source="ADMIN",
+                status="PAID"
+            )
+
+        messages.success(request, f"Sold {bundle_name} to {phone}. GHS {api_cost if 'api_cost' in locals() else price} deducted.")
+        return redirect("sell_bundle")
+
     return render(request, "sell_bundle.html", {
         "bundles": bundles,
-        "wallet_balance": profile.wallet  # <-- add this
+        "wallet_balance": profile.wallet
     })
 
 
+    
 # -------------------
 # Contact Admin (display + message form)
 # -------------------
@@ -993,10 +1115,12 @@ def admin_orders(request):
 def admin_add_bundle(request):
     if request.method == "POST":
         Bundle.objects.create(
-            name=request.POST["name"],
-            code=request.POST["code"],
-            network=request.POST["network"],
-            price=float(request.POST["price"]),
+            name=request.POST.get("name"),
+            vendor_code=request.POST.get("vendor_code"),
+            network=request.POST.get("network"),
+            price=Decimal(request.POST.get("price")),
+            vendor_price=Decimal(request.POST.get("vendor_price") or 0),
+            bundle_type=request.POST.get("bundle_type"),
             send_via_api=request.POST.get("send_via_api") == "on",
             is_active=True
         )
@@ -1006,16 +1130,17 @@ def admin_add_bundle(request):
 
     return render(request, "admin_add_bundle.html")
 
-
 @staff_member_required(login_url="/admin/login/")
 def admin_edit_bundle(request, bundle_id):
     bundle = get_object_or_404(Bundle, id=bundle_id)
 
     if request.method == "POST":
-        bundle.name = request.POST["name"]
-        bundle.code = request.POST["code"]
-        bundle.price = float(request.POST["price"])
-        bundle.network = request.POST["network"]
+        bundle.name = request.POST.get("name")
+        bundle.vendor_code = request.POST.get("vendor_code")
+        bundle.network = request.POST.get("network")
+        bundle.price = Decimal(request.POST.get("price"))
+        bundle.vendor_price = Decimal(request.POST.get("vendor_price") or 0)
+        bundle.bundle_type = request.POST.get("bundle_type")
         bundle.send_via_api = request.POST.get("send_via_api") == "on"
         bundle.save()
 
